@@ -78,7 +78,10 @@ class CheckResult(BaseModel):
 class DoctorReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    #: Worst outcome across all checks.
     status: CheckStatus
+    #: Serialised so shell callers can `jq -e '.ok'` without knowing the status vocabulary.
+    ok: bool
     where: str
     checks: list[CheckResult] = Field(default_factory=list)
 
@@ -90,11 +93,10 @@ class DoctorReport(BaseModel):
             overall = CheckStatus.WARN
         else:
             overall = CheckStatus.PASS
-        return cls(status=overall, where=where, checks=checks)
+        return cls(status=overall, ok=overall is not CheckStatus.FAIL, where=where, checks=checks)
 
-    @property
-    def ok(self) -> bool:
-        return self.status is not CheckStatus.FAIL
+    def failures(self) -> list[CheckResult]:
+        return [c for c in self.checks if c.status is CheckStatus.FAIL]
 
 
 class FeatureState(BaseModel):

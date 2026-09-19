@@ -71,6 +71,10 @@
       "title": "Checks",
       "type": "array"
     },
+    "ok": {
+      "title": "Ok",
+      "type": "boolean"
+    },
     "status": {
       "$ref": "#/$defs/CheckStatus"
     },
@@ -81,6 +85,7 @@
   },
   "required": [
     "status",
+    "ok",
     "where"
   ],
   "title": "DoctorReport",

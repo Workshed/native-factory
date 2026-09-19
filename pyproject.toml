@@ -48,6 +48,9 @@ ignore = [
 # S101: assert is how pytest works.
 # S105/S106: credential-shaped literals in tests are fixtures, not credentials.
 "tests/**" = ["S101", "S105", "S106"]
+# B008: typer's API *is* calling Option()/Argument() in parameter defaults.
+"packages/native-factory-cli/src/native_factory/cli/*" = ["B008"]
+"packages/native-factory-guest/src/native_factory_guest/__main__.py" = ["B008"]
 
 [tool.pyright]
 pythonVersion = "3.12"

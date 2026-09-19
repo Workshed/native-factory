@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "CheckResult": {
+      "additionalProperties": false,
+      "description": "One doctor check. Shared by host and guest doctor so the JSON shape is identical.",
+      "properties": {
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "remediation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remediation"
+        },
+        "status": {
+          "$ref": "#/$defs/CheckStatus"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "title": "CheckResult",
+      "type": "object"
+    },
+    "CheckStatus": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "skip"
+      ],
+      "title": "CheckStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://native-factory.dev/schemas/doctor-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Generated from pydantic models by native_factory_core.schema.export -- do not edit.",
+  "properties": {
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/CheckResult"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/CheckStatus"
+    },
+    "where": {
+      "title": "Where",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "where"
+  ],
+  "title": "DoctorReport",
+  "type": "object"
+}

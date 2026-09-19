@@ -1,0 +1,66 @@
+# Native Factory project configuration.
+# Schema: schemas/project-config.schema.json
+
+project:
+  name: {{PROJECT_NAME}}
+
+source:
+  # The website Native Factory treats as the reference product.
+  url: https://example.com
+
+agent:
+  # Resolved at runtime against the adapters in native_factory_guest.providers.
+  # claude-code | codex | gemini | copilot
+  provider: claude-code
+  # api-key      reads ANTHROPIC_API_KEY / OPENAI_API_KEY, injected per conversation
+  # oauth-token  reads CLAUDE_CODE_OAUTH_TOKEN; see docs/architecture.md section 9
+  auth: api-key
+
+targets:
+  ios:
+    enabled: true
+    bundle_id: com.example.native
+
+  android:
+    enabled: true
+    application_id: com.example.native
+    # Where the Android Emulator runs. It cannot run inside the macOS guest:
+    # an ARM64 emulator needs Hypervisor.framework. See docs/adr/0002.
+    #   host         emulator on this Mac, reached over the Tart NAT
+    #   linux-vm     emulator in a nested Linux guest (unverified; see docs/vm.md)
+    #   host-fallback  host emulator, Android build on the host too
+    emulator: host
+    # AVDs this project may lease -- one per concurrent worker. Empty means
+    # "any arm64 AVD on the host".
+    avds: []
+
+discovery:
+  viewports:
+    - 375x667
+    - 393x852
+    - 412x915
+  max_routes: 50
+
+factory:
+  require_spec_approval: true
+  max_retries: 3
+  preserve_failed_vm: true
+
+vm:
+  # Pin by digest in anger. Tags lie: HANDOFF section 4.4 records
+  # sequoia-xcode:latest resolving to 16.4 while 26.x tags exist.
+  base_image: ghcr.io/cirruslabs/macos-tahoe-xcode:26.5
+  golden_name: nf-golden
+  cpu: 8
+  memory_mb: 16384
+  disk_size_gb: 160
+  # open | allowlist. See docs/adr/0006 for why the default is open and what
+  # you are accepting by leaving it that way.
+  egress: open
+  egress_allowlist: []
+
+toolchain:
+  # Pinned together and smoke-tested as a pair: the Maestro iOS XCTest driver
+  # has recurring hang issues on new macOS/Xcode combinations.
+  xcode_version: "26.5"
+  maestro_version: "2.10.0"

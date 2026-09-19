@@ -1,0 +1,320 @@
+{
+  "$defs": {
+    "AgentAuth": {
+      "enum": [
+        "api-key",
+        "oauth-token"
+      ],
+      "title": "AgentAuth",
+      "type": "string"
+    },
+    "AgentSection": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "$ref": "#/$defs/AgentAuth",
+          "default": "api-key"
+        },
+        "provider": {
+          "default": "claude-code",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "title": "AgentSection",
+      "type": "object"
+    },
+    "AndroidTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "application_id": {
+          "default": "com.example.native",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "title": "Application Id",
+          "type": "string"
+        },
+        "avds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Avds",
+          "type": "array"
+        },
+        "emulator": {
+          "$ref": "#/$defs/EmulatorPlacement",
+          "default": "host"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "AndroidTarget",
+      "type": "object"
+    },
+    "DiscoverySection": {
+      "additionalProperties": false,
+      "properties": {
+        "max_routes": {
+          "default": 50,
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Max Routes",
+          "type": "integer"
+        },
+        "viewports": {
+          "items": {
+            "$ref": "#/$defs/Viewport"
+          },
+          "title": "Viewports",
+          "type": "array"
+        }
+      },
+      "title": "DiscoverySection",
+      "type": "object"
+    },
+    "Egress": {
+      "enum": [
+        "open",
+        "allowlist"
+      ],
+      "title": "Egress",
+      "type": "string"
+    },
+    "EmulatorPlacement": {
+      "description": "Where the Android Emulator runs. See ADR-0002.\n\nAn ARM64 emulator needs Hypervisor.framework and cannot be nested inside a macOS guest,\nso ``guest`` is deliberately not a value.",
+      "enum": [
+        "host",
+        "linux-vm",
+        "host-fallback"
+      ],
+      "title": "EmulatorPlacement",
+      "type": "string"
+    },
+    "FactorySection": {
+      "additionalProperties": false,
+      "properties": {
+        "max_retries": {
+          "default": 3,
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "preserve_failed_vm": {
+          "default": true,
+          "title": "Preserve Failed Vm",
+          "type": "boolean"
+        },
+        "require_spec_approval": {
+          "default": true,
+          "title": "Require Spec Approval",
+          "type": "boolean"
+        }
+      },
+      "title": "FactorySection",
+      "type": "object"
+    },
+    "IosTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_id": {
+          "default": "com.example.native",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]*$",
+          "title": "Bundle Id",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "title": "IosTarget",
+      "type": "object"
+    },
+    "ProjectSection": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][\\w .-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ProjectSection",
+      "type": "object"
+    },
+    "SourceSection": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "anyOf": [
+            {
+              "pattern": "^https?://",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "title": "SourceSection",
+      "type": "object"
+    },
+    "TargetsSection": {
+      "additionalProperties": false,
+      "properties": {
+        "android": {
+          "$ref": "#/$defs/AndroidTarget"
+        },
+        "ios": {
+          "$ref": "#/$defs/IosTarget"
+        }
+      },
+      "title": "TargetsSection",
+      "type": "object"
+    },
+    "ToolchainSection": {
+      "additionalProperties": false,
+      "description": "Versions that must be pinned together and smoke-tested as a pair.\n\nThe Maestro iOS XCTest driver has recurring hang issues on new macOS/Xcode\ncombinations (HANDOFF section 4.9), so Xcode and Maestro are pinned side by side.",
+      "properties": {
+        "maestro_version": {
+          "default": "2.10.0",
+          "title": "Maestro Version",
+          "type": "string"
+        },
+        "xcode_version": {
+          "default": "26.5",
+          "title": "Xcode Version",
+          "type": "string"
+        }
+      },
+      "title": "ToolchainSection",
+      "type": "object"
+    },
+    "Viewport": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "maximum": 4096,
+          "minimum": 240,
+          "title": "Height",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "width": {
+          "maximum": 4096,
+          "minimum": 240,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "width",
+        "height"
+      ],
+      "title": "Viewport",
+      "type": "object"
+    },
+    "VmSection": {
+      "additionalProperties": false,
+      "properties": {
+        "base_image": {
+          "default": "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
+          "title": "Base Image",
+          "type": "string"
+        },
+        "cpu": {
+          "default": 8,
+          "maximum": 64,
+          "minimum": 2,
+          "title": "Cpu",
+          "type": "integer"
+        },
+        "disk_size_gb": {
+          "default": 160,
+          "maximum": 2048,
+          "minimum": 60,
+          "title": "Disk Size Gb",
+          "type": "integer"
+        },
+        "egress": {
+          "$ref": "#/$defs/Egress",
+          "default": "open"
+        },
+        "egress_allowlist": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Egress Allowlist",
+          "type": "array"
+        },
+        "golden_name": {
+          "default": "nf-golden",
+          "title": "Golden Name",
+          "type": "string"
+        },
+        "memory_mb": {
+          "default": 16384,
+          "maximum": 262144,
+          "minimum": 4096,
+          "title": "Memory Mb",
+          "type": "integer"
+        }
+      },
+      "title": "VmSection",
+      "type": "object"
+    }
+  },
+  "$id": "https://native-factory.dev/schemas/project-config.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The contents of a project's ``native-factory.yaml``.\n\nGenerated from pydantic models by native_factory_core.schema.export -- do not edit.",
+  "properties": {
+    "agent": {
+      "$ref": "#/$defs/AgentSection"
+    },
+    "discovery": {
+      "$ref": "#/$defs/DiscoverySection"
+    },
+    "factory": {
+      "$ref": "#/$defs/FactorySection"
+    },
+    "project": {
+      "$ref": "#/$defs/ProjectSection"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceSection"
+    },
+    "targets": {
+      "$ref": "#/$defs/TargetsSection"
+    },
+    "toolchain": {
+      "$ref": "#/$defs/ToolchainSection"
+    },
+    "vm": {
+      "$ref": "#/$defs/VmSection"
+    }
+  },
+  "required": [
+    "project"
+  ],
+  "title": "ProjectConfig",
+  "type": "object"
+}

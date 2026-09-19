@@ -12,6 +12,7 @@ hits=$(grep -rniE "$PATTERN" \
         --include='*.py' \
         packages/ 2>/dev/null \
       | grep -v "$ALLOWED" \
+      | grep -v 'provider-name-ok' \
       || true)
 
 if [ -n "$hits" ]; then

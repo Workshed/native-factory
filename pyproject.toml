@@ -1,0 +1,68 @@
+[project]
+name = "native-factory-dev"
+version = "0.1.0"
+description = "Development workspace root for Native Factory"
+requires-python = ">=3.12"
+dependencies = [
+    "native-factory-core",
+    "native-factory-cli",
+    "native-factory-guest",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+native-factory-core = { workspace = true }
+native-factory-cli = { workspace = true }
+native-factory-guest = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "pyright>=1.1.390",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = [
+    "packages/native-factory-core/src",
+    "packages/native-factory-cli/src",
+    "packages/native-factory-guest/src",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "PTH", "S"]
+ignore = [
+    "S603",  # subprocess call: the whole point of this project
+    "S607",  # partial executable path: PATH lookup is intended for tart/packer/adb
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert is how pytest works
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = [
+    "packages/native-factory-core/src",
+    "packages/native-factory-cli/src",
+    "packages/native-factory-guest/src",
+    "tests",
+]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "vm: requires a real Tart VM on an Apple Silicon host (not run in CI)",
+    "slow: takes more than a few seconds",
+]
+addopts = "-ra --strict-markers"

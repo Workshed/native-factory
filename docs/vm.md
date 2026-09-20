@@ -106,6 +106,13 @@ vanilla-derived custom image is known to hang here.
 Created by hand, then provisioned with `scripts/setup-guest.sh`:
 
 ```bash
+# Verified 2026-09-20: tag 26.5 and tag latest both resolve to
+#   sha256:923c98d32e40ffadb6e6815a9722124b7a57bdf7d7763a708a2b28d1970831bd
+# They will diverge. Check before assuming you pulled what you meant to:
+#   TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:cirruslabs/macos-tahoe-xcode:pull&service=ghcr.io" | jq -r .token)
+#   curl -sI -H "Authorization: Bearer $TOKEN" \
+#     -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+#     https://ghcr.io/v2/cirruslabs/macos-tahoe-xcode/manifests/26.5 | grep -i docker-content-digest
 tart clone ghcr.io/cirruslabs/macos-tahoe-xcode:26.5 nf
 tart set nf --cpu 8 --memory 16384
 tart run --no-graphics --dir=work:$PWD/output nf &

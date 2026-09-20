@@ -5,7 +5,7 @@ from __future__ import annotations
 import typer
 
 from native_factory.cli import vm_cmd
-from native_factory.cli.context import Ctx, console, fail, repo_root
+from native_factory.cli.context import Ctx, console, fail, repo_root, run_record
 from native_factory.config.loader import CONFIG_FILENAME
 from native_factory.doctor.checks import host_checks
 from native_factory.doctor.report import print_report
@@ -38,7 +38,20 @@ def doctor(
 ) -> None:
     """Check the host is ready. Every failure carries a remediation line."""
     ctx = Ctx.build(project) if project else Ctx(workspace=Ctx.build(None).workspace)
-    report = DoctorReport.of("host", host_checks(ctx.config))
+
+    # Recorded like any other run: "was the host green before that failure?" is a
+    # question `status` should be able to answer.
+    with run_record(ctx, "doctor") as log:
+        report = DoctorReport.of("host", host_checks(ctx.config))
+        log.event(
+            "doctor.result",
+            status=report.status.value,
+            failed=[c.name for c in report.failures()],
+            checks=len(report.checks),
+        )
+        if not report.ok:
+            failed = ", ".join(c.name for c in report.failures())
+            log.failure = f"host not ready: {failed}"
 
     if json_output:
         typer.echo(report.model_dump_json(indent=2))

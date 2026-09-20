@@ -88,3 +88,9 @@ class TestTimed:
 
 def test_log_path_groups_runs_together(tmp_path: Path) -> None:
     assert log_path_for(tmp_path, "run_1") == tmp_path / "runs" / "run_1.jsonl"
+
+
+def test_failure_attribute_defaults_to_none(tmp_path: Path) -> None:
+    # A command may complete cleanly and still have a negative verdict; `status` must not
+    # report that as success.
+    assert RunLog(tmp_path / "r.jsonl", "run_1").failure is None

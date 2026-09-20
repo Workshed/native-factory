@@ -50,6 +50,10 @@ class RunLog:
     def __init__(self, path: Path, run_id: str) -> None:
         self.path = path
         self.run_id = run_id
+        #: Set by a command that completed but whose verdict was negative -- a doctor
+        #: report with failures, say. The command did not crash, but the run did not
+        #: succeed, and `status` should not claim otherwise.
+        self.failure: str | None = None
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = self.path.open("a", encoding="utf-8")
 

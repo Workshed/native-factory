@@ -103,8 +103,12 @@ def run_record(ctx: Ctx, command: str, *, vm_name: str | None = None) -> Iterato
         store.finish_run(run_id, status, error=str(exc))
         log.close()
         raise
-    log.event("run.ok")
-    store.finish_run(run_id, RunStatus.OK)
+    if log.failure:
+        log.event("run.failed", error=log.failure)
+        store.finish_run(run_id, RunStatus.FAILED, error=log.failure)
+    else:
+        log.event("run.ok")
+        store.finish_run(run_id, RunStatus.OK)
     log.close()
 
 

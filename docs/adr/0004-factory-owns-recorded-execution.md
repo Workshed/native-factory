@@ -1,6 +1,9 @@
 # ADR-0004 — The factory runs the recorded builds and tests; the agent edits code
 
-Date: 2026-09-19 · Status: accepted · **Deviation from both source documents**
+Date: 2026-09-19 · Status: **superseded by [ADR-0007](0007-prototype-first.md)** · **Deviation from both source documents**
+
+> Superseded on 2026-09-20 by the prototype-first pivot. Kept because the reasoning
+> still applies if the factory shape returns at v2. See ADR-0007 for what changed and why.
 
 ## Context
 

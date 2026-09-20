@@ -1,6 +1,9 @@
 # ADR-0005 — Mounts are stage-scoped; `reference/` is read-only outside discovery
 
-Date: 2026-09-19 · Status: accepted · **Addresses a gap in HANDOFF §4.2**
+Date: 2026-09-19 · Status: **superseded by [ADR-0007](0007-prototype-first.md)** · **Addresses a gap in HANDOFF §4.2**
+
+> Superseded on 2026-09-20 by the prototype-first pivot. Kept because the reasoning
+> still applies if the factory shape returns at v2. See ADR-0007 for what changed and why.
 
 ## Context
 

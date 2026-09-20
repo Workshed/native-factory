@@ -39,11 +39,11 @@ egress filtering exists for. That recommendation is recorded here rather than re
 
 ## Consequences and mitigations
 
-- `vm.egress: open | allowlist` exists in the config schema from Milestone 1 and defaults to
-  `open`. Flipping the default later is a one-line change plus an allow-list.
-- Host doctor checks for `softnet` only when `vm.egress: allowlist` is configured.
+- The prototype runs with open egress. `tart run --net-softnet` is the mechanism if and
+  when this is revisited.
+- `scripts/doctor.py` does not check for `softnet`, since nothing requires it yet.
 - **Mandatory mitigation:** use a dedicated, rotatable factory API key — never the user's
-  primary key. Documented in `docs/security.md` and surfaced by `native-factory init`.
+  primary key. Documented in `docs/security.md`.
 - The residual risk is written into `docs/security.md` in plain language so a user opting into
   autonomy knows what they are accepting.
 - Revisit at Milestone 3, when the risk first becomes live rather than theoretical.

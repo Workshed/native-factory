@@ -30,7 +30,7 @@ The licence is FSL-1.1-ALv2 — not OSI, but unrestricted for this use, and it c
 Apache-2.0 after two years. `https://tart.run/licensing/` is stale.
 
 `brew install openai/tools/softnet` is needed only if you set `vm.egress: allowlist`
-(ADR-0006). `native-factory doctor` skips the check otherwise.
+(ADR-0006), which the prototype does not. `scripts/doctor.py` skips the check otherwise.
 
 ## Commands used, and commands that do not exist
 
@@ -59,102 +59,80 @@ Consequences, designed in from Milestone 1:
 
 - At most **two features in flight** (Milestone 9's scheduler enforces this).
 - The golden image cannot be rebuilt while two workers run; `vm create` checks and says so.
-- `native-factory vm start` refuses a third worker **before invoking Tart**, naming the
-  limit and listing what is running. Tart would fail anyway, but only after a clone and
-  with an opaque message.
+- A third `tart run` fails with an opaque message, after the clone. Check `tart list`
+  first.
 
-## Lifecycle
-
-```text
-golden image ──clone──▶ worker ──run──▶ work ──stop──▶ delete  (success)
-                                                    └──▶ preserve (failure, if configured)
-```
-
-`tart clone` is an APFS copy-on-write clone: near-instant, and the clone's disk grows only
-as it diverges.
+## Day-to-day
 
 ```bash
-native-factory vm create                                   # build the golden image
-native-factory vm start --project demo --stage implement   # clone + run a worker
-native-factory vm shell                                    # interactive tart exec -it
-native-factory vm doctor                                   # guest toolchain report
-native-factory vm stop  --name nf-demo                     # stop, leave inspectable
-native-factory vm delete --name nf-demo
+tart list                                   # what exists, what is running
+tart run --no-graphics --dir=work:$PWD/output nf &
+tart exec -it nf /bin/zsh -l                # a shell in the guest
+tart ip nf                                  # then ssh admin@<ip> if the agent is down
+tart stop nf                                # stops; the VM stays, inspectable
+tart delete nf                              # removes it
 ```
 
-`vm stop` deliberately leaves the VM in place: the brief requires being able to enter a
-failed VM for debugging. `factory.preserve_failed_vm` keeps `vm delete` from removing one;
-`--force` overrides.
-
-`vm shell` prefers `tart exec -it`. If the guest agent is not answering, fall back to
-`ssh admin@$(tart ip <vm>)`.
+`tart clone` is an APFS copy-on-write clone: near-instant, and the clone grows only as it
+diverges. Clone a working VM before doing anything risky to it — Tart has no live
+snapshots, so this is the snapshot.
 
 ## Mounts
 
-Mounts appear in the guest at `/Volumes/My Shared Files/<name>`. Which ones, and whether
-they are writable, depends on the stage (ADR-0005):
+Mounts appear in the guest at `/Volumes/My Shared Files/<name>`. The prototype mounts one
+directory:
 
-| Stage | `reference` | `work` | `factory` |
-|---|---|---|---|
-| `discovery` | rw | — | ro |
-| `implement` | ro | rw | ro |
-| `evaluate` | ro | ro | ro |
+```bash
+tart run --no-graphics --dir=work:$PWD/output nf
+```
 
-`reports/` is never mounted; the host pulls results out over `tart exec`.
+so `output/reference`, `output/ios` and `output/android` are visible to the agent at
+`/Volumes/My Shared Files/work/`, and survive the VM.
+
+Only that directory is exposed. Never the home directory, never host SSH or cloud
+credentials.
+
+A read-only mount is `--dir=name:path:ro`. The prototype has no use for one yet; the
+earlier design used stage-scoped read-only mounts so an agent could not rewrite the
+specification it was judged against, and that concern returns with an evaluator
+(superseded ADR-0005).
 
 Touching a mount from `tart exec` triggers a TCC prompt unless SIP is disabled in the
 image. The official base and Xcode images disable it, which is a reason to stay on them; a
 vanilla-derived custom image is known to hang here.
 
-## The golden image
+## Provisioning
 
-Built by Packer from `images/packer/golden.pkr.hcl` over
-`ghcr.io/cirruslabs/macos-tahoe-xcode`, pinned by **digest**. Tags lie: HANDOFF §4.4
-records `sequoia-xcode:latest` resolving to 16.4 while 26.x tags exist.
-
-Already in the base: Xcode and platforms, Homebrew, git, node@24, mise, openjdk@17, Android
-cmdline-tools, platform-tools, `platforms;android-36`, `build-tools;36.0.0`, NDK, tuist,
-fastlane, `tart-guest-agent`, SIP disabled.
-
-Added by the factory layer: uv + Python 3.12, Playwright + Chromium/WebKit, Maestro,
-agent-device, XcodeBuildMCP, the OpenHands stack in `/opt/native-factory/venv`, pinned ACP
-adapters, the first-party `android` CLI, and the `native-factory-guest` wheel.
-
-**Deliberately absent: the Android `emulator` package and system images.** They cannot work
-here (ADR-0002); `90-android-cli.sh` fails the build if the emulator is present, and the
-guest doctor asserts its absence.
-
-### What "reproducible" means here
-
-Packer + Tart is neither idempotent nor bit-reproducible: a rebuild re-runs Homebrew and
-npm, and images differ by timestamp alone. So reproducibility is **pinned inputs plus a
-verifiable manifest**, not byte equality:
-
-- `/opt/native-factory/manifest.json` records the base image digest, every installed tool
-  version, the macOS version, and the SHA-256 of the template and provisioning scripts.
-- Two builds from the same `images/versions.lock.json` must produce equal manifests apart
-  from `built_at` and the image digest.
-- A second `native-factory vm create` is a detected no-op; `--force` rebuilds.
+Created by hand, then provisioned with `scripts/setup-guest.sh`:
 
 ```bash
-native-factory vm manifest nf-golden
+tart clone ghcr.io/cirruslabs/macos-tahoe-xcode:26.5 nf
+tart set nf --cpu 8 --memory 16384
+tart run --no-graphics --dir=work:$PWD/output nf &
+tart exec -it nf bash -lc '/Volumes/My\ Shared\ Files/work/../scripts/setup-guest.sh'
 ```
 
-`images/versions.lock.json` marks which pins have not yet survived a real build
-(`verified_against_build`, `pin_after_first_build`). Read the manifest after the first
-successful build and feed the resolved versions back into the lock file.
+There is no Packer golden image (ADR-0007). The script exists so a broken VM is
+recoverable by re-running something, rather than by following prose instructions again
+and hoping. `tart clone` of a working VM serves as the snapshot.
+
+**Deliberately not installed in the guest: the Android emulator.** It cannot work there,
+and `setup-guest.sh` fails the provision if it finds one. See ADR-0002.
+
+The base image already provides Xcode and platforms, Homebrew, git, node@24, openjdk@17,
+Android cmdline-tools, platform-tools, `platforms;android-36`, `build-tools;36.0.0`,
+tart-guest-agent, and SIP disabled.
 
 ## Disk
 
 | | |
 |---|---|
 | Xcode base image | ~69 GB compressed pull, ~140 GB on disk |
-| plain base image | ~27 GB / ~50 GB |
-| OCI cache | budget ~70 GB |
-| each worker | sparse clone, grows with divergence |
+| OCI cache | ~69 GB, reclaimable with `tart prune` once the VM exists |
+| the VM itself | grows from the base as it diverges |
 
-`doctor` fails below **250 GB** free and warns below 400 GB. HANDOFF §4.4 suggests ~200 GB;
-that is a one-worker figure and leaves nothing for two workers plus the cache.
+Simulator runtimes dominate: ~16 GB per platform volume, against 4 GB for Xcode.app
+itself. `doctor.py` warns below 120 GB free.
 
 ## Nested virtualization
 
@@ -174,7 +152,7 @@ placement.
 **`tart exec` hangs.** Almost always a TCC prompt on a mount path in an image without SIP
 disabled. Use an official base image.
 
-**A third VM will not start.** That is the ceiling, not a bug. `native-factory vm list`.
+**A third VM will not start.** That is the ceiling, not a bug. Check `tart list`.
 
 **`vm shell` cannot connect.** The guest agent may not be running. Check `tart ip <vm>`
 answers, then fall back to SSH.

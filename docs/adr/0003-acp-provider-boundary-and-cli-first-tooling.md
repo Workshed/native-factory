@@ -1,6 +1,9 @@
 # ADR-0003 — ACP is the provider boundary; prefer CLIs over MCP servers
 
-Date: 2026-09-19 · Status: accepted
+Date: 2026-09-19 · Status: **superseded by [ADR-0007](0007-prototype-first.md)**
+
+> Superseded on 2026-09-20 by the prototype-first pivot. Kept because the reasoning
+> still applies if the factory shape returns at v2. See ADR-0007 for what changed and why.
 
 ## Context
 

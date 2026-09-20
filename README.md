@@ -1,100 +1,93 @@
 # Native Factory
 
-A local software factory. It takes a running website as an executable reference product and
-produces two genuinely native applications — Swift/SwiftUI for iOS and Kotlin/Compose for
-Android — reproducing its functionality and product experience. Agents and mobile toolchains run
-inside disposable [Tart](https://github.com/openai/tart) macOS virtual machines.
+A prototype. It takes a running website as a reference product and has an AI coding agent
+build two genuinely native applications from it — Swift/SwiftUI for iOS, Kotlin/Compose
+for Android — inside a Tart macOS VM.
 
-> **Status: Milestone 1, pre-alpha.** VM bootstrap only. There is no website discovery, no
-> project generation and no `build` command yet. See
-> [`docs/implementation-plan.md`](docs/implementation-plan.md).
+> **Status: prototype, not yet working end to end.** The goal is one complete
+> website → iOS + Android workflow, not a platform. See
+> [`docs/prototype-plan.md`](docs/prototype-plan.md).
 
-## What it is not
+Not a transpiler. The website is observed as a product, not read as source. **A WebView
+wrapper is a failure of the task**, however well it works.
 
-Not a web-to-native transpiler. The website is observed as a product, not read as source. No
-WebView shell, no cross-platform UI framework. Pixel-identical rendering is explicitly not a
-goal; behavioural and product parity is.
+## How it fits together
+
+```text
+              OpenHands Agent Canvas
+                       │
+                      ACP
+             ┌─────────┴─────────┐
+        Claude Code        GitHub Copilot CLI
+             └─────────┬─────────┘
+                  output/
+             ┌─────────┴─────────┐
+             ▼                   ▼
+           SwiftUI             Compose
+```
+
+ACP is the abstraction — there is no provider layer of our own. Switching agent changes
+nothing about the website inspection, the project structure or the build process.
 
 ## Requirements
 
-- Apple Silicon Mac (M-series)
-- macOS with [Tart](https://github.com/openai/tart) from the `openai/tools` tap
-- ~250 GB free disk — the base Xcode image is ~69 GB compressed / ~140 GB on disk
-- Python 3.12+ via [uv](https://docs.astral.sh/uv/)
+- Apple Silicon Mac
+- [Tart](https://github.com/openai/tart) from the `openai/tools` tap
+- ~140 GB free for the VM
+- A Claude Code or GitHub Copilot subscription
 
-Apple's macOS SLA permits **two** macOS VM instances per Mac, and Tart enforces the same limit.
-Native Factory therefore runs at most two workers concurrently.
-
-## Quick start
+## Getting started
 
 ```bash
 brew install openai/tools/tart openai/tools/tart-guest-agent
-brew install hashicorp/tap/packer     # not in homebrew-core; HashiCorp's own tap
-git clone <this repo> && cd native-factory
-uv sync
+python3 scripts/doctor.py                     # what's missing, and how to fix it
 
-uv run native-factory doctor          # check the host
-uv run native-factory vm create       # build the golden image (60-90 min, one time)
-uv run native-factory init myproject  # create a workspace
-uv run native-factory vm start --project myproject --stage implement
-uv run native-factory vm shell
+tart clone ghcr.io/cirruslabs/macos-tahoe-xcode:26.5 nf
+tart set nf --cpu 8 --memory 16384
+tart run --no-graphics --dir=work:$PWD/output nf &
+tart exec -it nf /bin/zsh -l                  # then run scripts/setup-guest.sh
 ```
 
-## Architecture in one picture
+Full setup, including the traps: [`docs/vm.md`](docs/vm.md).
 
-```mermaid
-flowchart LR
-  subgraph Host["Host Mac"]
-    CLI["native-factory CLI"]
-    WS["~/NativeFactory/projects/&lt;name&gt;"]
-    Emu["Android Emulator + adb server"]
-  end
-  subgraph Guest["Tart macOS worker (disposable)"]
-    RT["factory runtime"]
-    AS["OpenHands agent server"]
-    ACP["ACP coding agent"]
-    T["Xcode · Simulator · Gradle · Playwright<br/>Maestro · agent-device · XcodeBuildMCP"]
-  end
-  CLI --> Guest
-  WS <-->|"ro / rw per stage"| RT
-  RT --> AS --> ACP --> T
-  T -->|ADB_SERVER_SOCKET| Emu
-```
+## The Android emulator runs on your Mac, not in the VM
 
-The Android Emulator runs on the **host**, not in the guest: an ARM64 emulator needs
-Hypervisor.framework and cannot be nested inside a macOS VM. Everything else — including the
-Android SDK, Gradle builds and unit tests — stays in the guest. See
-[`docs/adr/0002`](docs/adr/0002-android-emulator-outside-the-guest.md).
+The one thing that cannot be simplified. An ARM64 emulator needs Hypervisor.framework and
+cannot be hardware-accelerated inside a macOS guest — it fails with `HV_UNSUPPORTED`.
+Everything else Android — SDK, Gradle, unit tests — stays in the VM, which reaches your
+emulator over a remote adb server.
 
-The coding agent sits behind [ACP](https://agentclientprotocol.com), so Claude Code, Codex,
-Gemini or Copilot are interchangeable. No provider-specific logic exists outside
-`providers/`.
+[`docs/adr/0002`](docs/adr/0002-android-emulator-outside-the-guest.md) has the reasoning
+and the fallbacks. `scripts/spikes/s1-android-adb-over-nat.sh` tests whether the plumbing
+actually works, one ADB client at a time.
 
-## Security, stated plainly
+## Security
 
-**The VM is the only isolation boundary.** OpenHands auto-grants every ACP permission request
-and launches the coding agent with permissions bypassed. The inspected website is untrusted
-input and travels in the same prompt string as trusted instructions. Read
-[`docs/architecture.md` §9](docs/architecture.md) before pointing this at anything you care
-about, and use a dedicated, rotatable API key — never your primary one.
+**The VM is the only isolation boundary.** OpenHands auto-grants every ACP permission
+request and runs the coding agent with permissions bypassed, and scraped website text
+travels in the same prompt as your instructions. Read
+[`docs/security.md`](docs/security.md) before pointing this at a site you care about.
 
 ## Documentation
 
 | | |
 |---|---|
-| [`docs/architecture.md`](docs/architecture.md) | the architecture of record |
-| [`docs/implementation-plan.md`](docs/implementation-plan.md) | milestones 1–10 and acceptance tests |
-| [`docs/adr/`](docs/adr/) | the decisions, with context and consequences |
+| [`docs/prototype-plan.md`](docs/prototype-plan.md) | what we are building and in what order |
+| [`docs/architecture.md`](docs/architecture.md) | how it fits together |
+| [`docs/vm.md`](docs/vm.md) | Tart, provisioning, traps |
+| [`docs/security.md`](docs/security.md) | what the VM does and does not protect you from |
+| [`docs/adr/`](docs/adr/) | decisions, including the ones that were reversed |
 
-## Development
+`prompts/build-native-apps.md` is the task given to the coding agent. It is deliberately
+provider-agnostic.
 
-```bash
-uv sync
-uv run ruff check .
-uv run pyright
-uv run pytest tests/unit tests/contract      # no VM required
-uv run pytest -m vm tests/acceptance         # requires Tart on an Apple Silicon host
-```
+## History
+
+An earlier attempt built a full factory — CLI, Packer golden image, run database,
+provider adapters, 277 tests — before demonstrating that an agent can build a working
+native app at all. That was the wrong order.
+[ADR-0007](docs/adr/0007-prototype-first.md) records the pivot; the code is preserved on
+the `archive/full-factory-m1` branch.
 
 ## Licence
 

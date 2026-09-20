@@ -29,3 +29,6 @@ crash.log
 
 # Never commit workspace output
 /NativeFactory/
+
+# Prototype output: generated projects and scraped reference material
+output/

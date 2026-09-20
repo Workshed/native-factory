@@ -1,6 +1,9 @@
 # ADR-0001 — Host CLI is Python 3.12+ managed by uv
 
-Date: 2026-09-19 · Status: accepted (user decision, HANDOFF §2.1 — not to be reopened)
+Date: 2026-09-19 · Status: **superseded by [ADR-0007](0007-prototype-first.md)** (user decision, HANDOFF §2.1 — not to be reopened)
+
+> Superseded on 2026-09-20 by the prototype-first pivot. Kept because the reasoning
+> still applies if the factory shape returns at v2. See ADR-0007 for what changed and why.
 
 ## Context
 

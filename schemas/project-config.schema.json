@@ -1,9 +1,10 @@
 {
   "$defs": {
     "AgentAuth": {
+      "description": "How the coding agent authenticates.\n\n``subscription`` uses the seat you already pay for -- a long-lived token minted from\nan existing login. ``api-key`` uses metered per-token billing.\n\nNamed for intent rather than mechanism, because the mechanism differs per provider --\none mints a long-lived token from an existing CLI login, another wants a fine-grained\npersonal access token. Which variables each accepts belongs in its adapter, not here.\nSee docs/agents.md.",
       "enum": [
-        "api-key",
-        "oauth-token"
+        "subscription",
+        "api-key"
       ],
       "title": "AgentAuth",
       "type": "string"
@@ -13,7 +14,7 @@
       "properties": {
         "auth": {
           "$ref": "#/$defs/AgentAuth",
-          "default": "api-key"
+          "default": "subscription"
         },
         "provider": {
           "default": "claude-code",

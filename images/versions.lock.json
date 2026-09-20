@@ -10,7 +10,6 @@
     "verified against a real build yet -- see verified_against_build."
   ],
   "verified_against_build": null,
-
   "base_image": {
     "ref": "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
     "digest": null,
@@ -23,12 +22,10 @@
       "build-tools;36.0.0, NDK, tuist, fastlane, tart-guest-agent, SIP disabled."
     ]
   },
-
   "python": {
     "version": "3.12",
     "$comment": "Installed and managed by uv, not by the system."
   },
-
   "npm": {
     "playwright": "1.63.0",
     "xcodebuildmcp": "2.7.0",
@@ -37,6 +34,7 @@
     "@agentclientprotocol/codex-acp": null,
     "@google/gemini-cli": null,
     "@openhands/agent-canvas": null,
+    "@github/copilot": null,
     "$comment": [
       "ACP adapters are installed globally at a pinned version rather than invoked with",
       "`npx -y` as HANDOFF 4.1 writes them. npx resolves and downloads at invocation, which",
@@ -44,9 +42,10 @@
       "latest at run time. See ADR-0003."
     ]
   },
-
-  "playwright_browsers": ["chromium", "webkit"],
-
+  "playwright_browsers": [
+    "chromium",
+    "webkit"
+  ],
   "maestro": {
     "version": "2.10.0",
     "$comment": [
@@ -55,7 +54,6 @@
       "alongside Xcode and the pair is smoke-tested in Milestone 5."
     ]
   },
-
   "openhands": {
     "openhands-sdk": null,
     "openhands-tools": null,
@@ -63,7 +61,6 @@
     "openhands-agent-server": null,
     "$comment": "Installed at Milestone 1, configured at Milestone 2."
   },
-
   "android": {
     "cli": null,
     "emulator": "DELIBERATELY_ABSENT",
@@ -74,13 +71,13 @@
       "The guest doctor asserts its absence; a present emulator is a build error."
     ]
   },
-
   "pin_after_first_build": [
     "base_image.digest",
     "npm.agent-device",
     "npm.@agentclientprotocol/claude-agent-acp",
     "npm.@agentclientprotocol/codex-acp",
     "npm.@google/gemini-cli",
+    "npm.@github/copilot",
     "npm.@openhands/agent-canvas",
     "openhands.*",
     "android.cli"

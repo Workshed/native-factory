@@ -25,8 +25,19 @@ class Strict(BaseModel):
 
 
 class AgentAuth(StrEnum):
+    """How the coding agent authenticates.
+
+    ``subscription`` uses the seat you already pay for -- a long-lived token minted from
+    an existing login. ``api-key`` uses metered per-token billing.
+
+    Named for intent rather than mechanism, because the mechanism differs per provider --
+    one mints a long-lived token from an existing CLI login, another wants a fine-grained
+    personal access token. Which variables each accepts belongs in its adapter, not here.
+    See docs/agents.md.
+    """
+
+    SUBSCRIPTION = "subscription"
     API_KEY = "api-key"
-    OAUTH_TOKEN = "oauth-token"  # noqa: S105  -- an auth *mode* name, not a credential
 
 
 class EmulatorPlacement(StrEnum):
@@ -69,7 +80,10 @@ class AgentSection(Strict):
     provider: Annotated[str, Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9-]*$")] = (
         "claude-code"  # provider-name-ok: default identifier, not provider logic
     )
-    auth: AgentAuth = AgentAuth.API_KEY
+    #: Defaults to the subscription seat rather than metered billing. This departs from
+    #: HANDOFF 4.3, which recommends defaulting to an API key; the deciding factor was
+    #: cost. See docs/agents.md for the trade-off that comes with it.
+    auth: AgentAuth = AgentAuth.SUBSCRIPTION
 
 
 class IosTarget(Strict):

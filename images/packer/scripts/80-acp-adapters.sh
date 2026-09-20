@@ -11,10 +11,14 @@
 set -euo pipefail
 NF_PREFIX=/opt/native-factory
 
+# Every adapter we might plausibly select is installed now. Pre-installing is what makes
+# the image reproducible (ADR-0003), and the cost of that choice is that adding a provider
+# later means a 60-90 minute rebuild -- so the list is deliberately generous.
 adapters=(
   "@agentclientprotocol/claude-agent-acp"
   "@agentclientprotocol/codex-acp"
   "@google/gemini-cli"
+  "@github/copilot"
 )
 
 for adapter in "${adapters[@]}"; do
@@ -31,5 +35,11 @@ print(next(iter(d.values()), {}).get('version', 'unknown'))
   echo "$adapter $resolved"
 done
 
-# GitHub Copilot is not a built-in OpenHands provider; it is reached through the Custom
-# provider with `copilot --acp` and is not installed here (HANDOFF 4.1).
+# GitHub Copilot is not a built-in OpenHands provider (HANDOFF 4.1): it is reached through
+# the Custom provider, using the CLI's own native ACP server, `copilot --acp --stdio`.
+# It needs Node 22+, which 20-node-tools.sh has already asserted.
+if command -v copilot >/dev/null 2>&1; then
+  echo "copilot CLI present: $(copilot --version 2>&1 | head -1)"
+else
+  echo "warning: @github/copilot installed but 'copilot' is not on PATH" >&2
+fi

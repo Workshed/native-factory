@@ -20,7 +20,7 @@ def test_minimal_config_fills_documented_defaults() -> None:
     config = ProjectConfig.model_validate(MINIMAL)
 
     assert config.project.name == "Example"
-    assert config.agent.auth is AgentAuth.API_KEY
+    assert config.agent.auth is AgentAuth.SUBSCRIPTION
     assert config.targets.ios.enabled is True
     assert config.targets.android.emulator is EmulatorPlacement.HOST
     assert config.factory.require_spec_approval is True
@@ -115,3 +115,21 @@ def test_base_image_digest_pinning_is_detectable() -> None:
 
 def test_stage_values_match_the_mount_policy_table() -> None:
     assert {s.value for s in Stage} == {"discovery", "implement", "evaluate"}
+
+
+class TestAgentAuth:
+    def test_defaults_to_the_subscription_seat_not_metered_billing(self) -> None:
+        # Departs from HANDOFF 4.3's recommended api-key default; the deciding factor was
+        # cost. See docs/agents.md for what that trade-off costs in exposure.
+        assert ProjectConfig.model_validate(MINIMAL).agent.auth is AgentAuth.SUBSCRIPTION
+
+    def test_auth_vocabulary_is_provider_neutral(self) -> None:
+        # "oauth-token" described one provider's mechanism; "subscription" describes the
+        # intent, which is what the user is actually choosing.
+        assert {m.value for m in AgentAuth} == {"subscription", "api-key"}
+
+    def test_provider_is_free_form_so_core_never_gates_the_registry(self) -> None:
+        config = ProjectConfig.model_validate(
+            {**MINIMAL, "agent": {"provider": "copilot", "auth": "subscription"}}
+        )
+        assert config.agent.provider == "copilot"

@@ -29,6 +29,7 @@ Native Factory therefore runs at most two workers concurrently.
 
 ```bash
 brew install openai/tools/tart openai/tools/tart-guest-agent
+brew install hashicorp/tap/packer     # not in homebrew-core; HashiCorp's own tap
 git clone <this repo> && cd native-factory
 uv sync
 

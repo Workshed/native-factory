@@ -7,6 +7,22 @@ is the operational detail.
 
 ```bash
 brew install openai/tools/tart openai/tools/tart-guest-agent
+brew install hashicorp/tap/packer            # only needed to build the golden image
+```
+
+Two things will trip you up here.
+
+**Packer is not in homebrew-core.** HashiCorp relicensed to BUSL-1.1 in 2023 and their
+formulae moved to `hashicorp/tap`; plain `brew install packer` fails with "No available
+formula". Using Packer as a build tool does not affect this project's Apache-2.0 licence.
+
+**Homebrew now requires tap trust.** A first install from either tap may stop with
+`Refusing to load formula ... from untrusted tap`. Trust the specific formula rather than
+the whole tap:
+
+```bash
+brew trust --formula openai/tools/softnet
+brew trust --formula hashicorp/tap/packer
 ```
 
 Cirrus Labs joined OpenAI on 2026-04-07, so the tap is `openai/tools`, not `cirruslabs/cli`.

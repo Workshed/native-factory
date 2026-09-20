@@ -29,6 +29,10 @@ MACOS_FLOOR_FOR_XCODE_27 = "26.6"
 
 TART_TAP = "openai/tools"
 
+#: Packer left homebrew-core when HashiCorp relicensed to BUSL in 2023; it is only in
+#: HashiCorp's own tap. `brew install packer` fails with "No available formula".
+PACKER_TAP = "hashicorp/tap"
+
 
 def _ok(name: str, detail: str = "", version: str | None = None) -> CheckResult:
     return CheckResult(name=name, status=CheckStatus.PASS, detail=detail, version=version)
@@ -158,7 +162,10 @@ def check_packer() -> CheckResult:
         return _warn(
             "packer",
             "not on PATH",
-            "Needed only by `native-factory vm create`: brew install packer",
+            "Needed only by `native-factory vm create`:\n"
+            f"  brew install {PACKER_TAP}/packer\n"
+            "  Packer is not in homebrew-core -- HashiCorp relicensed to BUSL in 2023 and\n"
+            "  their formulae moved to their own tap. Plain `brew install packer` fails.",
         )
     version = extract_version(run(["packer", "version"]).text)
     plugins = run(["packer", "plugins", "installed"])

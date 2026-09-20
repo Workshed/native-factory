@@ -164,3 +164,16 @@ class TestAssembly:
         for check in checks.host_checks(ProjectConfig.model_validate(MINIMAL)):
             if check.status is CheckStatus.FAIL:
                 assert check.remediation, f"{check.name} fails without telling the user what to do"
+
+
+class TestPackerRemediation:
+    def test_names_the_hashicorp_tap_not_homebrew_core(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # `brew install packer` fails: HashiCorp relicensed to BUSL in 2023 and their
+        # formulae left homebrew-core. Telling the user to run a command that cannot work
+        # is worse than saying nothing.
+        monkeypatch.setattr(checks, "which", lambda _: None)
+        result = checks.check_packer()
+        assert result.status is CheckStatus.WARN
+        assert "hashicorp/tap/packer" in (result.remediation or "")

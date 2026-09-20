@@ -87,17 +87,24 @@ class TestSoftnet:
 
 
 class TestAndroid:
-    def test_legacy_cli_fails_the_host_doctor(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_legacy_cli_is_detected_and_warned_about_on_the_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         # AT-1's regression test: a presence check would pass here, because the legacy
-        # script exits 0.
+        # script exits 0. Detection is the property under test.
+        #
+        # Severity is WARN, not FAIL: the host never invokes `android`, it only runs the
+        # emulator and adb. The guest does run `android create`, and its doctor fails --
+        # see test_guest_doctor.py::TestGuestAndroidCli.
         monkeypatch.setattr(
             checks,
             "classify_android_cli",
             lambda: (checks.AndroidCliKind.LEGACY, "/x/sdk/tools/android", None),
         )
         result = checks.check_android_cli()
-        assert result.status is CheckStatus.FAIL
+        assert result.status is CheckStatus.WARN
         assert "exits 0" in (result.remediation or "")
+        assert result.status is not CheckStatus.PASS, "a presence check would have passed"
 
     def test_absent_cli_is_skipped_because_the_guest_provides_it(
         self, monkeypatch: pytest.MonkeyPatch

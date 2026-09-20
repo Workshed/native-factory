@@ -196,12 +196,18 @@ def check_python() -> CheckResult:
 
 
 def check_android_cli() -> CheckResult:
-    """The legacy `android` script shares the name of the first-party CLI and exits 0."""
+    """The legacy `android` script shares the name of the first-party CLI and exits 0.
+
+    A **warning** on the host, a **failure** in the guest. The host never invokes `android`
+    -- it only runs the emulator and adb (ADR-0002) -- so a legacy shadow here is a stale
+    SDK worth reporting, not a reason to block an otherwise ready machine. The guest does
+    run `android create`, so `native_factory_guest.doctor` fails on it.
+    """
     kind, path, version = classify_android_cli()
     if kind is AndroidCliKind.ABSENT:
         return _skip("android-cli", "no `android` on PATH (the guest image provides it)")
     if kind is AndroidCliKind.LEGACY:
-        return _fail("android-cli", f"legacy SDK Tools script at {path}", LEGACY_REMEDIATION)
+        return _warn("android-cli", f"legacy SDK Tools script at {path}", LEGACY_REMEDIATION)
     return _ok("android-cli", path or "", version=version)
 
 

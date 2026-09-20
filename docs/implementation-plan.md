@@ -140,11 +140,16 @@ Negative tests:
 - With `tart` absent from PATH: non-zero exit, and the message names
   `brew install openai/tools/tart`.
 - With less than 250 GB free (simulated): non-zero exit naming the figure.
-- **Legacy `android` regression** — doctor must **fail**, not pass, when the only `android` on
-  PATH is `~/Library/Android/sdk/tools/android`. That is the deprecated 2017 SDK Tools script; it
-  shares the name of the first-party CLI HANDOFF §4.8 requires and it **exits 0**, so a
-  presence check silently passes against the wrong binary. Doctor asserts on `android --version`
-  output shape.
+- **Legacy `android` regression** — doctor must **detect**, not silently pass, when the only
+  `android` on PATH is `~/Library/Android/sdk/tools/android`. That is the deprecated 2017 SDK
+  Tools script; it shares the name of the first-party CLI HANDOFF §4.8 requires and it **exits
+  0**, so a presence check passes against the wrong binary. Doctor classifies by behaviour --
+  path layout, then output text -- never by presence.
+
+  Severity is **warn on the host, fail in the guest**. This revises the original AT-1, which
+  said the host must fail. The host never invokes `android`: under ADR-0002 it runs only the
+  emulator and adb, so a legacy shadow is a stale SDK worth reporting rather than a reason to
+  block an otherwise ready machine. The guest runs `android create`, so AT-4 fails on it.
 
 #### AT-2 — golden image build, and no-op rebuild
 

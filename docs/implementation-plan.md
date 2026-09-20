@@ -127,10 +127,13 @@ uv run python -m native_factory.config.export_schemas --check   # schemas/ in sy
 
 ```bash
 uv run native-factory doctor --json | tee /tmp/doctor.json
-jq -e '.status == "ok" and ([.checks[] | select(.status == "fail")] | length == 0)' /tmp/doctor.json
+jq -e '.ok and ([.checks[] | select(.status == "fail")] | length == 0)' /tmp/doctor.json
 ```
 
 **Pass:** exit 0; every host check present with a version string.
+
+`DoctorReport` serialises a boolean `ok` alongside `status` so shell callers need not know
+the status vocabulary (`pass` / `fail` / `warn` / `skip`). `warn` does not fail the report.
 
 Negative tests:
 
@@ -244,6 +247,10 @@ scope it. In the guest, derive the gateway from the **default route**; do not ha
 
 Guest environment: `ADB_SERVER_SOCKET=tcp:<gateway>:5037`, `ANDROID_SERIAL=<leased serial>`.
 
+Harness: `scripts/spikes/s1-android-adb-over-nat.sh --vm <worker> --avd <avd> [--apk <path>]`.
+It refuses to run against platform-tools older than 35, because a result from the 2022
+releases would prove nothing either way.
+
 | # | Check | Client under test |
 |---|---|---|
 | a | `adb devices` lists the host emulator | adb CLI |
@@ -266,12 +273,12 @@ rung from the architecture's fallback ladder (`docs/architecture.md` §6) — **
 #### AT-8 — Spike S2: Linux nested virtualization on M5
 
 ```bash
-tart clone ghcr.io/cirruslabs/ubuntu:latest nf-nested
-tart run --nested --no-graphics nf-nested &
-tart exec nf-nested sh -c 'ls -l /dev/kvm; grep -r . /sys/module/kvm/parameters/ 2>/dev/null | head'
+scripts/spikes/s2-nested-virtualization.sh
 ```
 
-Also assert that Tart **rejects** `--nested` for a macOS guest.
+It clones a Linux guest, runs it with `--nested`, and looks for `/dev/kvm`. It also
+asserts that Tart **rejects** `--nested` for a macOS guest -- which stops anyone "fixing"
+the emulator problem by nesting macOS.
 
 **Pass/fail is informational.** Tart's docs claim M3/M4; M5 is unverified. The result decides
 whether `targets.android.emulator: linux-vm` is viable later. Recorded in `docs/vm.md`.

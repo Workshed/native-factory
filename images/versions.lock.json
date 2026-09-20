@@ -1,0 +1,88 @@
+{
+  "$comment": [
+    "Pinned inputs for the golden image. Reproducibility here means pinned inputs plus a",
+    "verifiable manifest, not byte-identical images: Packer re-runs Homebrew and npm.",
+    "Two builds from this file must produce equal /opt/native-factory/manifest.json apart",
+    "from built_at and the image digest.",
+    "",
+    "Versions marked null are resolved at build time and RECORDED in the manifest. Read the",
+    "manifest after the first successful build and move them here. Nothing below has been",
+    "verified against a real build yet -- see verified_against_build."
+  ],
+  "verified_against_build": null,
+
+  "base_image": {
+    "ref": "ghcr.io/cirruslabs/macos-tahoe-xcode:26.5",
+    "digest": null,
+    "$comment": [
+      "Pin the digest, not the tag. HANDOFF 4.4 records sequoia-xcode:latest resolving to",
+      "16.4 while 26.x tags exist. Fill `digest` from the first pull and switch `ref` to",
+      "the ...@sha256:... form; ProjectConfig.vm.pinned_by_digest reports which form is in use.",
+      "The base image already provides: Xcode + platforms, Homebrew, git, node@24, mise,",
+      "openjdk@17, Android cmdline-tools, platform-tools, platforms;android-36,",
+      "build-tools;36.0.0, NDK, tuist, fastlane, tart-guest-agent, SIP disabled."
+    ]
+  },
+
+  "python": {
+    "version": "3.12",
+    "$comment": "Installed and managed by uv, not by the system."
+  },
+
+  "npm": {
+    "playwright": "1.63.0",
+    "xcodebuildmcp": "2.7.0",
+    "agent-device": null,
+    "@agentclientprotocol/claude-agent-acp": null,
+    "@agentclientprotocol/codex-acp": null,
+    "@google/gemini-cli": null,
+    "@openhands/agent-canvas": null,
+    "$comment": [
+      "ACP adapters are installed globally at a pinned version rather than invoked with",
+      "`npx -y` as HANDOFF 4.1 writes them. npx resolves and downloads at invocation, which",
+      "would make a reproducible image depend on npm reachability and on whatever version is",
+      "latest at run time. See ADR-0003."
+    ]
+  },
+
+  "playwright_browsers": ["chromium", "webkit"],
+
+  "maestro": {
+    "version": "2.10.0",
+    "$comment": [
+      "Requires Java 17+, already in the base image. The iOS XCTest driver has recurring",
+      "hang issues on new macOS/Xcode combinations (HANDOFF 4.9), so this is pinned",
+      "alongside Xcode and the pair is smoke-tested in Milestone 5."
+    ]
+  },
+
+  "openhands": {
+    "openhands-sdk": null,
+    "openhands-tools": null,
+    "openhands-workspace": null,
+    "openhands-agent-server": null,
+    "$comment": "Installed at Milestone 1, configured at Milestone 2."
+  },
+
+  "android": {
+    "cli": null,
+    "emulator": "DELIBERATELY_ABSENT",
+    "system_images": "DELIBERATELY_ABSENT",
+    "$comment": [
+      "The emulator cannot run in a macOS guest: an ARM64 AVD needs Hypervisor.framework",
+      "and fails with HV_UNSUPPORTED when nested. It runs on the host instead (ADR-0002).",
+      "The guest doctor asserts its absence; a present emulator is a build error."
+    ]
+  },
+
+  "pin_after_first_build": [
+    "base_image.digest",
+    "npm.agent-device",
+    "npm.@agentclientprotocol/claude-agent-acp",
+    "npm.@agentclientprotocol/codex-acp",
+    "npm.@google/gemini-cli",
+    "npm.@openhands/agent-canvas",
+    "openhands.*",
+    "android.cli"
+  ]
+}

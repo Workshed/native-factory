@@ -7,6 +7,12 @@ See [ADR-0007](adr/0007-prototype-first.md) for why.
 website → iOS + Android workflow. Infrastructure is added when a demonstrated problem
 requires it, and not before.
 
+> **The objective is met.** On 2026-09-22 a real website — the Lloyds first-time-buyer
+> mortgage affordability calculator — was inspected, explored, and reproduced as a native
+> SwiftUI app and a native Compose app, both returning the site's own £247,500 for the
+> same inputs. 4/4 Maestro flows on iOS, 2/2 plus 5 unit tests on Android. One feature
+> slice of one site: enough to prove the concept, not a general system.
+
 ---
 
 ## Success criterion

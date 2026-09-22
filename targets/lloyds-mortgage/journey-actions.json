@@ -1,0 +1,168 @@
+[
+  {
+    "name": "about-you-validation",
+    "actions": [
+      {
+        "do": "probe",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "applicants-question",
+    "actions": [
+      {
+        "do": "radio",
+        "label": "Buy a home"
+      },
+      {
+        "do": "radio",
+        "label": "Yes"
+      },
+      {
+        "do": "radio",
+        "label": "ready to make an offer"
+      },
+      {
+        "do": "click",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "journey-type",
+    "actions": [
+      {
+        "do": "radio",
+        "label": "Just me"
+      },
+      {
+        "do": "click",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "journey-type-validation",
+    "actions": [
+      {
+        "do": "probe",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "income-employment",
+    "actions": [
+      {
+        "do": "radio",
+        "label": "Both"
+      },
+      {
+        "do": "click",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "employment-validation",
+    "actions": [
+      {
+        "do": "probe",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "income-amounts",
+    "actions": [
+      {
+        "do": "radio",
+        "label": "Employed"
+      },
+      {
+        "do": "click",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "outgoings-dependents",
+    "actions": [
+      {
+        "do": "fill",
+        "label": "applicantOneBasicIncome",
+        "value": "45000"
+      },
+      {
+        "do": "fill",
+        "label": "applicantOneBonus",
+        "value": "0"
+      },
+      {
+        "do": "fill",
+        "label": "applicantOneOther",
+        "value": "0"
+      },
+      {
+        "do": "click",
+        "label": "Continue"
+      }
+    ]
+  },
+  {
+    "name": "dependents-validation",
+    "actions": [
+      {
+        "do": "probe",
+        "label": "Get results"
+      }
+    ]
+  },
+  {
+    "name": "affordability-result",
+    "actions": [
+      {
+        "do": "radio",
+        "label": "0"
+      },
+      {
+        "do": "click",
+        "label": "Get results"
+      }
+    ]
+  },
+  {
+    "name": "deals-empty",
+    "actions": [
+      {
+        "do": "probe",
+        "label": "Search and recalculate"
+      }
+    ]
+  },
+  {
+    "name": "deals-list",
+    "actions": [
+      {
+        "do": "fill",
+        "label": "affordabilityResultsPropertyPrice",
+        "value": "250000"
+      },
+      {
+        "do": "fill",
+        "label": "affordabilityResultsDeposit",
+        "value": "30000"
+      },
+      {
+        "do": "fill",
+        "label": "affordabilityResultsTerm",
+        "value": "25"
+      },
+      {
+        "do": "click",
+        "label": "Search and recalculate"
+      }
+    ]
+  }
+]

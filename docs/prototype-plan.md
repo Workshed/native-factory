@@ -106,7 +106,24 @@ Then **stop and report** before building the conversion.
 
 **Step 1 — Inspect.** `scripts/inspect-site.ts`, a plain Playwright script with no LLM in
 the loop, at 393×852 and 412×915. Run it with `scripts/run-in-guest.sh` — see the mount
-warning below. Capture routes, screenshots, page text, links, buttons,
+warning below.
+
+**The deterministic crawl only reaches screen one of an interactive flow.** It follows
+links; a multi-step form advances by button. That is by design — the plan's answer is
+that the agent drives Playwright itself when the capture does not answer a question, and
+that works: on the Lloyds mortgage calculator the agent walked 8 interactions across 5
+screens to a real result, wrote its own replayable driver, and produced a 17 KB
+`journey.md` documenting every question, option, hint, validation message and the
+business rule behind the answer.
+
+Two things it did that were not asked for and are worth keeping:
+
+- captured **unanswered and answered states separately**, which is the state inventory a
+  native implementation needs;
+- listed the site's **instruction-shaped text** ("Please select 'Buy a home'", "Let us
+  know your income") in a section of its own, noting that these address the bank's
+  customer and were not acted on. That is the untrusted-content boundary holding in
+  practice, not just in the prompt. Capture routes, screenshots, page text, links, buttons,
 forms and accessibility information into `output/reference/`, plus a readable
 `site.md`. No formal schema. The agent can also drive Playwright itself to revisit the
 site when the capture doesn't answer a question.

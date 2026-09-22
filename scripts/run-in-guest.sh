@@ -31,18 +31,25 @@ shift
 NAME="$(basename "$SCRIPT")"
 REMOTE="\$HOME/nf/$NAME"
 
+# Arguments are interpolated into a remote `bash -lc` string, so each one must be
+# shell-quoted first. Without this an `&` in a URL backgrounds the command and the rest
+# of the line is parsed as a new one -- which fails as "--out: command not found" while
+# still half-running, so it looks like a flag problem rather than a quoting one.
+ARGS=""
+for arg in "$@"; do ARGS+=" $(printf '%q' "$arg")"; done
+
 tart exec -i "$VM" bash -l -c "mkdir -p \$HOME/nf && cat > $REMOTE" < "$SCRIPT"
 
 case "$NAME" in
   *.ts|*.js|*.mjs)
     # NODE_PATH so createRequire can resolve the global Playwright install.
-    tart exec "$VM" bash -l -c "cd '/Volumes/My Shared Files/work' && NODE_PATH=\$(npm root -g) node $REMOTE $*"
+    tart exec "$VM" bash -l -c "cd '/Volumes/My Shared Files/work' && NODE_PATH=\$(npm root -g) node $REMOTE$ARGS"
     ;;
   *.sh)
-    tart exec "$VM" bash -l -c "chmod +x $REMOTE && cd '/Volumes/My Shared Files/work' && $REMOTE $*"
+    tart exec "$VM" bash -l -c "chmod +x $REMOTE && cd '/Volumes/My Shared Files/work' && $REMOTE$ARGS"
     ;;
   *.py)
-    tart exec "$VM" bash -l -c "cd '/Volumes/My Shared Files/work' && python3 $REMOTE $*"
+    tart exec "$VM" bash -l -c "cd '/Volumes/My Shared Files/work' && python3 $REMOTE$ARGS"
     ;;
   *)
     echo "don't know how to run $NAME" >&2; exit 2 ;;

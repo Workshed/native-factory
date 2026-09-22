@@ -36,6 +36,26 @@ const VIEWPORTS: Viewport[] = [
   { name: 'android', width: 412, height: 915 },
 ];
 
+/** Site chrome. Its links are navigation, not the product journey, and following them
+ *  walks away from the flow being captured. Excluded from the crawl frontier and from
+ *  the captured link list. */
+const CHROME = 'header, [role="banner"], footer, [role="contentinfo"], nav, [role="navigation"]';
+
+/**
+ * Only capture what a user can actually reach.
+ *
+ * A dismissed cookie dialog stays in the DOM, so its buttons and inputs keep appearing
+ * in every screen's capture and drown the real controls. Same for collapsed menus and
+ * pre-rendered modals.
+ *
+ * checkVisibility() rather than measuring boxes. Custom-styled radios are routinely
+ * zero-size `opacity: 0` inputs behind a styled label -- invisible by any pixel measure,
+ * but the option they represent is on screen and clickable. A getBoundingClientRect
+ * test reported the Lloyds calculator as having no inputs at all; checkVisibility keeps
+ * them while still excluding anything inside a `display: none` subtree.
+ */
+const VISIBLE = `(e) => e.checkVisibility({ contentVisibilityAuto: true })`;
+
 type Element = { text: string; role?: string; name?: string };
 type Screen = {
   url: string;
@@ -78,12 +98,24 @@ function slugify(url: string): string {
   }
 }
 
-/** Strip anything credential-shaped before a URL is written to disk. */
+/**
+ * Strip anything credential- or identity-shaped before a URL is written to disk.
+ *
+ * Not just secrets: analytics parameters carry persistent visitor identifiers. A real
+ * Lloyds URL arrived with an `LBGAc` blob that base64-decodes to Adobe Marketing Cloud
+ * state including an MCMID -- a stable identifier for the person who copied the link.
+ * That must not end up committed in reference/, so long opaque values are redacted by
+ * shape as well as by name.
+ */
+const IDENTITY_PARAMS = /token|key|secret|password|auth|session|sig|lbgac|mcmid|gclid|fbclid|_ga|utm_/i;
+
 function redact(url: string): string {
   try {
     const u = new URL(url);
     for (const key of [...u.searchParams.keys()]) {
-      if (/token|key|secret|password|auth|session|sig/i.test(key)) {
+      const value = u.searchParams.get(key) ?? '';
+      const opaque = value.length > 64 && /^[A-Za-z0-9+/=._-]+$/.test(value);
+      if (IDENTITY_PARAMS.test(key) || opaque) {
         u.searchParams.set(key, '[redacted]');
       }
     }
@@ -93,6 +125,31 @@ function redact(url: string): string {
   } catch {
     return url;
   }
+}
+
+/**
+ * Get the cookie banner out of the way.
+ *
+ * It otherwise dominates the capture -- every screen shows the same consent dialog's
+ * buttons and text, and on some sites it blocks interaction entirely. "Reject" is tried
+ * before "Accept": declining is the conservative default when clicking on someone's
+ * behalf, and it sets fewer cookies.
+ */
+async function dismissConsent(page: Page): Promise<string | null> {
+  const labels = [/reject all/i, /reject/i, /decline/i, /only necessary/i, /accept all/i];
+  for (const label of labels) {
+    const button = page.getByRole('button', { name: label }).first();
+    try {
+      if (await button.isVisible({ timeout: 1_000 })) {
+        await button.click({ timeout: 3_000 });
+        await page.waitForTimeout(750);
+        return label.source;
+      }
+    } catch {
+      // Not present, or vanished while we looked: try the next label.
+    }
+  }
+  return null;
 }
 
 async function capture(page: Page, url: string, outDir: string): Promise<Screen> {
@@ -106,23 +163,32 @@ async function capture(page: Page, url: string, outDir: string): Promise<Screen>
       els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).slice(0, 40),
     ),
     text: (await page.evaluate(() => document.body?.innerText ?? '')).slice(0, 20_000),
-    links: await page.$$eval('a[href]', (els) =>
+    links: (
+      await page.$$eval(
+        'a[href]',
+        (els, chrome) =>
+          els
+            .filter((e) => !e.closest(chrome))
+            .map((e) => ({ text: (e.textContent ?? '').trim(), href: (e as HTMLAnchorElement).href }))
+            .filter((l) => l.href)
+            .slice(0, 200),
+        CHROME,
+      )
+    ).map((l) => ({ ...l, href: redact(l.href) })),
+    buttons: await page.$$eval('button,[role="button"],input[type="submit"]', (els, vis) =>
       els
-        .map((e) => ({ text: (e.textContent ?? '').trim(), href: (e as HTMLAnchorElement).href }))
-        .filter((l) => l.href)
-        .slice(0, 200),
-    ),
-    buttons: await page.$$eval('button,[role="button"],input[type="submit"]', (els) =>
-      els
+        .filter(new Function('return ' + vis)() as (e: Element) => boolean)
         .map((e) => ({
           text: (e.textContent ?? (e as HTMLInputElement).value ?? '').trim(),
           role: e.getAttribute('role') ?? undefined,
           name: e.getAttribute('aria-label') ?? undefined,
         }))
         .slice(0, 100),
+      VISIBLE,
     ),
-    inputs: await page.$$eval('input,select,textarea', (els) =>
+    inputs: await page.$$eval('input,select,textarea', (els, vis) =>
       els
+        .filter(new Function('return ' + vis)() as (e: Element) => boolean)
         .map((e) => ({
           type: (e as HTMLInputElement).type ?? e.tagName.toLowerCase(),
           name: (e as HTMLInputElement).name ?? '',
@@ -130,6 +196,7 @@ async function capture(page: Page, url: string, outDir: string): Promise<Screen>
           required: (e as HTMLInputElement).required ?? false,
         }))
         .slice(0, 100),
+      VISIBLE,
     ),
     aria: {},
     screenshots: {},
@@ -214,6 +281,14 @@ async function main(): Promise<void> {
     process.stdout.write(`  ${url}\n`);
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      // Client-rendered pages are a shell at domcontentloaded -- the Lloyds calculator
+      // renders as "Loading component..." and nothing else. Wait for the network to go
+      // quiet, then settle. networkidle can legitimately never fire (polling, analytics
+      // beacons, websockets), so a timeout here is not an error.
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+      await page.waitForTimeout(1_500);
+      const dismissed = await dismissConsent(page);
+      if (dismissed) process.stdout.write(`    dismissed consent (${dismissed})\n`);
     } catch (err) {
       process.stdout.write(`    skipped: ${(err as Error).message.split('\n')[0]}\n`);
       continue;

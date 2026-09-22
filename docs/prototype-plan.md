@@ -89,7 +89,7 @@ doesn't, and finding out is the point.
 | 7 | Claude Code drives a trivial repo edit through OpenHands ACP | **done 2026-09-22** |
 | 8 | Copilot drives the same edit via Custom ACP → `copilot --acp --stdio` | |
 | **9** | **An agent creates, builds and runs a trivial Compose app against the host emulator** | plumbing **proven 2026-09-22** without an agent; `scripts/adb-bridge.sh verify` |
-| 10 | An agent creates, builds and runs a trivial SwiftUI app | |
+| 10 | An agent creates, builds and runs a trivial SwiftUI app | **done 2026-09-22** — plus a Maestro flow |
 | 11 | Playwright inspects a website from inside the VM | cheapest item here |
 | 12 | Document the working setup in README.md | |
 
@@ -119,6 +119,20 @@ against the host emulator.
 
 **Step 4 — Smoke test.** A handful of Maestro journeys inferred from the website. Not
 comprehensive testing.
+
+**Maestro must be told which device to use.** With the adb bridge up, an Android device
+is always visible, so Maestro defaults to it — an iOS flow then fails with
+`Package ... is not installed` while reporting `Running on Pixel_9_API_36`, which reads
+like a packaging problem and is not one. Pass the target explicitly:
+
+```bash
+maestro --device <simulator-udid> test .maestro/flow.yaml    # iOS
+maestro --device emulator-5554     test .maestro/flow.yaml    # Android
+```
+
+The Maestro iOS XCTest driver itself works: HANDOFF 4.9 flags it for hangs on new
+macOS/Xcode pairs, and it passed cleanly on Xcode 26.5 / macOS 26.6.2 (5s, including a
+tap and an assertion).
 
 ### Acceptance
 

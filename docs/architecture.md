@@ -72,23 +72,22 @@ An ARM64 AVD requires Hypervisor.framework, and hardware acceleration cannot be 
 inside a macOS guest — the emulator fails with `HV_UNSUPPORTED`. Everything else Android
 stays in the guest: SDK, Gradle builds, unit tests.
 
-The guest reaches the host's emulator through a remote adb server:
+`scripts/adb-bridge.sh up` bridges the host's emulator in, with a forwarder on each side:
 
 ```text
-host:  adb start-server                                   # 127.0.0.1:5037
-       socat TCP-LISTEN:5037,bind=192.168.64.1,fork,reuseaddr TCP:127.0.0.1:5037
-guest: ADB_SERVER_SOCKET=tcp:<gateway>:5037  ANDROID_SERIAL=<serial>
+host   adb on 127.0.0.1:5037,  socat <gateway>:5037 -> it
+guest  socat 127.0.0.1:5037 -> <gateway>:5037
 ```
 
-adb cannot bind a single interface -- `adb -L tcp:<ip>:5037` fails with *listening on
-specified hostname currently unsupported* -- but it does not need to. A forwarder bound
-to the vmnet interface keeps adb on localhost, needs no root, and leaves no firewall
-state behind. The guest reads the gateway from its own routing table; `route` is not on
-`tart exec`'s minimal PATH, so use `netstat -rn`.
+The guest-side half is the important one. adb cannot bind a single interface, and **AGP
+ignores `ADB_SERVER_SOCKET` entirely** — Gradle hangs on "Cannot reach ADB server" however
+the environment is set. Forwarding localhost inside the guest makes every client's
+assumption true instead of asking each one to cooperate, so adb, Gradle and Maestro all
+work with no environment variables at all.
 
-Four separate ADB clients have to honour that environment — the adb CLI, Gradle/AGP,
-Maestro's bundled dadb, and agent-device — and any of them can fail independently.
-`scripts/spikes/s1-android-adb-over-nat.sh` tests them one at a time.
+Verified end to end on 2026-09-22: a Compose app built in the guest, installed on the host
+emulator, launched, and passed a Maestro flow. `scripts/adb-bridge.sh verify` re-checks
+all four clients.
 
 Full reasoning and the fallback ladder:
 [ADR-0002](adr/0002-android-emulator-outside-the-guest.md).

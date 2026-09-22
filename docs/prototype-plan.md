@@ -84,7 +84,7 @@ doesn't, and finding out is the point.
 | 6 | Copilot CLI authenticates with its subscription login | fine-grained PAT, *Copilot Requests* permission |
 | 7 | Claude Code drives a trivial repo edit through OpenHands ACP | |
 | 8 | Copilot drives the same edit via Custom ACP → `copilot --acp --stdio` | |
-| **9** | **An agent creates, builds and runs a trivial Compose app against the host emulator** | **do this early** |
+| **9** | **An agent creates, builds and runs a trivial Compose app against the host emulator** | plumbing **proven 2026-09-22** without an agent; `scripts/adb-bridge.sh verify` |
 | 10 | An agent creates, builds and runs a trivial SwiftUI app | |
 | 11 | Playwright inspects a website from inside the VM | cheapest item here |
 | 12 | Document the working setup in README.md | |

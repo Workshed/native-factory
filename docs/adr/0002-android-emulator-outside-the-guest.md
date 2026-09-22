@@ -13,39 +13,64 @@ Both iOS and Android are required (HANDOFF §2.2), and Tart is the system's only
 
 ## Decision
 
-Only the emulator leaves the guest. The Android SDK, Gradle builds, unit tests and Roborazzi
-(JVM) stay in the guest. For v1 the emulator runs on the host with a NAT-scoped adb server, and
-guest-side clients reach it via `ADB_SERVER_SOCKET`.
+Only the emulator leaves the guest. The Android SDK, Gradle builds, unit tests and
+Robolectric stay in the guest. The emulator runs on the host, and **a forwarder on each
+side** bridges it in — `scripts/adb-bridge.sh`.
 
-Configuration: `targets.android.emulator: host | linux-vm | host-fallback`.
+```text
+host   adb start-server                      127.0.0.1:5037
+       socat  <gateway>:5037  ->  127.0.0.1:5037
+       socat  <gateway>:5554  ->  127.0.0.1:5554     (emulator console)
 
-Three additions beyond HANDOFF §4.5:
+guest  socat  127.0.0.1:5037  ->  <gateway>:5037
+       socat  127.0.0.1:5554  ->  <gateway>:5554
+```
 
-1. **A forwarder, not `adb -a` and not a firewall.** Measured 2026-09-22: adb genuinely
-   cannot bind one interface --
+**Verified end to end on 2026-09-22.** A Compose app created with `android create` inside
+the guest built, installed onto the host emulator (`Installed on 1 device.`), launched,
+and passed a Maestro flow with JUnit output — all four ADB clients working with **no
+environment variables set**.
+
+### Why forwarders rather than `ADB_SERVER_SOCKET`, and why not a firewall
+
+Three measured facts, none of which were obvious from the documentation:
+
+1. **adb cannot bind one interface.**
 
        $ adb -L tcp:192.168.64.1:5037 server nodaemon
        could not install *smartsocket* listener: listening on specified hostname
        currently unsupported
 
-   but it does not have to. Leave adb on its localhost default and put a forwarder in
-   front, bound to the vmnet interface alone:
+   HANDOFF 4.5's `adb -a` plus a root-loaded pf anchor would work, but a forwarder is
+   better on three counts: adb is never exposed on all interfaces even briefly, no root
+   is needed (5037 is unprivileged), and there is no firewall state to load, verify or
+   forget to remove.
 
-       adb start-server                                    # 127.0.0.1:5037
-       socat TCP-LISTEN:5037,bind=192.168.64.1,fork,reuseaddr TCP:127.0.0.1:5037
+2. **AGP does not honour `ADB_SERVER_SOCKET`.** With it set correctly, Gradle
+   `installDebug` hangs on `[DeviceMonitor]: Cannot reach ADB server, attempting to
+   reconnect` — it installs its own platform-tools and looks for a local server. This is
+   the question HANDOFF 8.2 asks only of Maestro; AGP fails it independently, as
+   predicted.
 
-   This is better than HANDOFF 4.5's `adb -a` plus a pf anchor on three counts: adb is
-   never exposed on all interfaces even briefly, no root is needed (5037 is unprivileged),
-   and there is no firewall state to load, verify or forget to remove.
-2. **Gateway discovery.** The guest derives the gateway from its default route. Tart's vmnet
-   subnet is not guaranteed to be `192.168.64.1`.
-3. **Device leases.** Two concurrent guests share one adb server and one emulator pool with no
-   arbitration in HANDOFF's design. One AVD per worker, serial pinned via `ANDROID_SERIAL`,
-   leases in `state.db`.
+3. **A guest-side forwarder makes the question moot.** Forwarding `127.0.0.1:5037` inside
+   the guest makes every client's localhost assumption *true*. Nothing has to honour
+   anything. That is why adb, Gradle and Maestro all pass with no environment set — and
+   why a future client that also ignores the variable will work anyway.
 
-## Gate
+Port 5554 is the emulator **console**, not adb: it carries the device name and the
+console-only features (GPS, SMS, battery). It needs the host's
+`~/.emulator_console_auth_token`, which `adb-bridge.sh up` copies in. Without it Maestro
+still passes but reports
+`device="error: could not connect to TCP port 5554: Connection refused"`.
 
-The spike moves from the start of Milestone 6 to the end of Milestone 1. It needs only a booted
+Configuration: `targets.android.emulator: host | linux-vm | host-fallback`.
+
+## Gate — passed
+
+The spike moved from Milestone 6 to the start of the work, and **passed on 2026-09-22**.
+`scripts/adb-bridge.sh verify` re-runs it. The fallback ladder below was not needed.
+
+Historical note: the spike moved forward because It needs only a booted
 guest, the host emulator and a prebuilt APK, all of which exist at M1, and this host already has
 the SDK and four AVDs. Deferring it would place M2–M5 on an unverified assumption whose failure
 reopens the emulator placement, the config schema and the M9 concurrency model.

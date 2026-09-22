@@ -70,6 +70,11 @@ if ! command -v claude >/dev/null 2>&1; then
   echo "Claude Code is not installed. Install it per https://code.claude.com/docs if wanted."
 fi
 
+log "socat (Android bridge)"
+# The guest end of scripts/adb-bridge.sh. Forwarding 127.0.0.1:5037 inside the guest is
+# what makes Gradle work: AGP ignores ADB_SERVER_SOCKET (docs/adr/0002).
+command -v socat >/dev/null 2>&1 || brew install socat
+
 log "OpenHands Agent Canvas"
 command -v uv >/dev/null 2>&1 || brew install uv
 npm install -g @openhands/agent-canvas

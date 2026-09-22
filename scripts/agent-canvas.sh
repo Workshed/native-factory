@@ -37,6 +37,11 @@ done
 
 # Local-only development key. It protects the guest's API from anything else on the
 # 192.168.64.0/24 vmnet; it is not a secret worth rotating.
+#
+# Set explicitly but WITHOUT --public: the key is then injected into the frontend, so the
+# browser never shows an "Add a backend" dialog, and scripts still know the key for API
+# calls. With --public the key is withheld from the frontend and must be pasted by hand,
+# which is friction with no benefit for a single-user local prototype.
 KEY="${LOCAL_BACKEND_API_KEY:-nf-local-dev-key}"
 
 guest_ip() { tart ip "$VM" 2>/dev/null; }
@@ -47,7 +52,7 @@ case "$ACTION" in
       mkdir -p ~/oh && cd ~/oh
       pkill -f 'agent-canvas' 2>/dev/null
       export LOCAL_BACKEND_API_KEY='$KEY'
-      nohup agent-canvas --public --port $PORT > ~/oh/agent-canvas.log 2>&1 &
+      nohup agent-canvas --port $PORT > ~/oh/agent-canvas.log 2>&1 &
       sleep 3
     "
     echo "starting; first run fetches agent-server via uvx and can take a few minutes"
@@ -61,7 +66,7 @@ case "$ACTION" in
         echo
         echo "  Agent Canvas:  http://localhost:$PORT/     <- use this in a browser"
         echo "  (direct:       http://$(guest_ip):$PORT/  works for curl, often not for Chrome)"
-        echo "  API key:       $KEY   (paste when the UI asks)"
+        echo "  API key:       $KEY   (injected automatically; no dialog)"
         exit 0
       fi
       sleep 5

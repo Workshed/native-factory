@@ -71,7 +71,13 @@ record host-platform-tools pass "platform-tools $PT_VERSION"
 
 # The guest must derive the gateway from its own default route: Tart's vmnet subnet is not
 # guaranteed to be 192.168.64.1.
-GATEWAY="$(tart exec "$VM" sh -c "route -n get default 2>/dev/null | awk '/gateway/ {print \$2}'" | tr -d '\r\n')"
+# `tart exec` gives a minimal PATH without /sbin, so `route` is not callable and
+# `route -n get default` silently yields nothing. netstat is on the default PATH.
+# Measured 2026-09-22; the same class of bug as the JDK PATH issue in setup-guest.sh.
+GATEWAY="$(tart exec "$VM" sh -c "netstat -rn -f inet 2>/dev/null | awk '/^default/ {print \$2; exit}'" | tr -d '\r\n')"
+if [ -z "$GATEWAY" ]; then
+  GATEWAY="$(tart exec "$VM" sh -c 'ipconfig getoption en0 router 2>/dev/null' | tr -d '\r\n')"
+fi
 if [ -z "$GATEWAY" ]; then
   record guest-gateway fail "could not read the guest's default gateway"
   exit 1

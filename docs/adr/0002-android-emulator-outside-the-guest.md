@@ -21,8 +21,22 @@ Configuration: `targets.android.emulator: host | linux-vm | host-fallback`.
 
 Three additions beyond HANDOFF §4.5:
 
-1. **Firewalling, not binding.** `adb -a` binds `0.0.0.0`; adb cannot bind one interface.
-   Scoping port 5037 to `192.168.64.0/24` requires a root-loaded pf anchor.
+1. **A forwarder, not `adb -a` and not a firewall.** Measured 2026-09-22: adb genuinely
+   cannot bind one interface --
+
+       $ adb -L tcp:192.168.64.1:5037 server nodaemon
+       could not install *smartsocket* listener: listening on specified hostname
+       currently unsupported
+
+   but it does not have to. Leave adb on its localhost default and put a forwarder in
+   front, bound to the vmnet interface alone:
+
+       adb start-server                                    # 127.0.0.1:5037
+       socat TCP-LISTEN:5037,bind=192.168.64.1,fork,reuseaddr TCP:127.0.0.1:5037
+
+   This is better than HANDOFF 4.5's `adb -a` plus a pf anchor on three counts: adb is
+   never exposed on all interfaces even briefly, no root is needed (5037 is unprivileged),
+   and there is no firewall state to load, verify or forget to remove.
 2. **Gateway discovery.** The guest derives the gateway from its default route. Tart's vmnet
    subnet is not guaranteed to be `192.168.64.1`.
 3. **Device leases.** Two concurrent guests share one adb server and one emulator pool with no

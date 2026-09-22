@@ -75,13 +75,16 @@ stays in the guest: SDK, Gradle builds, unit tests.
 The guest reaches the host's emulator through a remote adb server:
 
 ```text
-guest: ADB_SERVER_SOCKET=tcp:<default-route gateway>:5037
-host:  adb -a -P 5037 server nodaemon   (pf-scoped to 192.168.64.0/24)
+host:  adb start-server                                   # 127.0.0.1:5037
+       socat TCP-LISTEN:5037,bind=192.168.64.1,fork,reuseaddr TCP:127.0.0.1:5037
+guest: ADB_SERVER_SOCKET=tcp:<gateway>:5037  ANDROID_SERIAL=<serial>
 ```
 
-Two details that bite: `adb -a` binds `0.0.0.0` and cannot bind a single interface, so
-scoping it is a firewall job; and the guest must read the gateway from its own default
-route rather than assuming `192.168.64.1`.
+adb cannot bind a single interface -- `adb -L tcp:<ip>:5037` fails with *listening on
+specified hostname currently unsupported* -- but it does not need to. A forwarder bound
+to the vmnet interface keeps adb on localhost, needs no root, and leaves no firewall
+state behind. The guest reads the gateway from its own routing table; `route` is not on
+`tart exec`'s minimal PATH, so use `netstat -rn`.
 
 Four separate ADB clients have to honour that environment — the adb CLI, Gradle/AGP,
 Maestro's bundled dadb, and agent-device — and any of them can fail independently.

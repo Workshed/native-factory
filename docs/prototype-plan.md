@@ -49,7 +49,11 @@ constraint the prototype cannot simplify away. The guest reaches the host's emul
 `ADB_SERVER_SOCKET`. See [ADR-0002](adr/0002-android-emulator-outside-the-guest.md).
 
 Authentication uses each agent's normal subscription login, interactively, once. A
-persistent VM is what makes that possible.
+persistent VM is what makes that possible — and it works: a conversation ran end to end
+with **no `ANTHROPIC_API_KEY` and no `CLAUDE_CODE_OAUTH_TOKEN` set anywhere**. The ACP
+subprocess inherits the guest's `HOME` and reads `~/.claude`, because
+`acp_isolate_data_dir` defaults to `False`. HANDOFF 4.3 describes the SDK as isolating
+`CLAUDE_CONFIG_DIR`; that is true only when that flag is turned on.
 
 ## Repository
 
@@ -79,10 +83,10 @@ doesn't, and finding out is the point.
 | 1 | Tart installs and a macOS guest boots | blocked today on Command Line Tools 16.2 vs Xcode 26.6 |
 | 2 | `setup-guest.sh` provisions a fresh clone | re-runnable, so a broken VM is recoverable |
 | 3 | `doctor.py --guest` is green inside the VM | |
-| 4 | OpenHands Agent Canvas runs, reachable from the host browser | |
-| 5 | Claude Code authenticates with its subscription login | |
+| 4 | OpenHands Agent Canvas runs, reachable from the host browser | **done** — `scripts/agent-canvas.sh up` |
+| 5 | Claude Code authenticates with its subscription login | **done** — `/login`, no API key |
 | 6 | Copilot CLI authenticates with its subscription login | fine-grained PAT, *Copilot Requests* permission |
-| 7 | Claude Code drives a trivial repo edit through OpenHands ACP | |
+| 7 | Claude Code drives a trivial repo edit through OpenHands ACP | **done 2026-09-22** |
 | 8 | Copilot drives the same edit via Custom ACP → `copilot --acp --stdio` | |
 | **9** | **An agent creates, builds and runs a trivial Compose app against the host emulator** | plumbing **proven 2026-09-22** without an agent; `scripts/adb-bridge.sh verify` |
 | 10 | An agent creates, builds and runs a trivial SwiftUI app | |

@@ -14,6 +14,8 @@ This is easy to assume and wrong:
 - **OpenHands auto-grants every ACP permission request.** There is no human-in-the-loop
   prompt.
 - It launches **Claude Code in `bypassPermissions`** and **Codex in `agent-full-access`**.
+  Confirmed in the installed SDK's provider registry, not just the documentation:
+  `default_session_mode="bypassPermissions"` for `claude-code`.
 - Playwright MCP's own README says it is **"not a security boundary"**. Its origin filters
   and secret masking are conveniences, not controls.
 

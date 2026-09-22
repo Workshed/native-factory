@@ -39,7 +39,7 @@ providers; the factory adds nothing on top of that.
 
 | Provider | How |
 |---|---|
-| Claude Code | OpenHands' supported Claude Code ACP integration |
+| Claude Code | OpenHands' built-in `claude-code` ACP provider (`acp_server`), which resolves `@agentclientprotocol/claude-agent-acp` via npx |
 | GitHub Copilot | Custom ACP agent → `copilot --acp --stdio` (no built-in preset) |
 
 The contract is narrow on purpose: *the selected agent can read and modify the workspace
@@ -58,6 +58,9 @@ so passing both silently defeats an explicit choice of subscription auth.
 ## Authentication
 
 Each agent's normal subscription login, performed interactively inside the VM, once.
+**Verified 2026-09-22**: a full ACP conversation ran with no API key and no OAuth token
+in the environment. The ACP subprocess inherits the guest's `HOME`, so it reads the
+`~/.claude` session that `/login` wrote.
 
 This is only possible because the prototype's VM is persistent. A disposable VM would
 have to inject a credential on every run — which the agent could then read out of its own

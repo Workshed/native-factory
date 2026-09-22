@@ -67,12 +67,25 @@ tart exec -it nf /bin/zsh -l        # then: claude -> /login   (or copilot -> /l
 python3 scripts/doctor.py --guest   # via tart exec; expect 0 failed
 ```
 
-Then:
+Then run a target through the pipeline:
 
 ```bash
 scripts/agent-canvas.sh up                    # UI at http://localhost:8000
 scripts/adb-bridge.sh up                      # only for Android work
-scripts/run-in-guest.sh scripts/inspect-site.ts https://example.com --out reference
+
+scripts/factory.sh lloyds-mortgage all        # inspect → explore → GATE → build → test
+scripts/factory.sh lloyds-mortgage status     # what ran, from which prompt
+```
+
+A target is three files — `target.yaml`, `brief.md`, and whatever driver the explore
+stage writes. Prompts are composed from a shared half plus the target's brief, so nothing
+is written twice. There is one approval gate, between exploring and building. See
+[`docs/workflow.md`](docs/workflow.md).
+
+Switching coding agent is one variable and changes nothing else:
+
+```bash
+NF_PROVIDER=copilot scripts/factory.sh <target> build-ios
 ```
 
 Full setup and the traps: [`docs/vm.md`](docs/vm.md).
@@ -102,6 +115,7 @@ travels in the same prompt as your instructions. Read
 
 | | |
 |---|---|
+| [`docs/workflow.md`](docs/workflow.md) | running a target: stages, the gate, prompt composition |
 | [`docs/prototype-plan.md`](docs/prototype-plan.md) | what we are building, in what order, and what is done |
 | [`docs/architecture.md`](docs/architecture.md) | how it fits together |
 | [`docs/vm.md`](docs/vm.md) | Tart, provisioning, traps |

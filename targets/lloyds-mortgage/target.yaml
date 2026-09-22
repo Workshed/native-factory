@@ -1,0 +1,4 @@
+# Minimal, on purpose. Add a field when a stage needs it, not before.
+name: Mortgage Calculator
+url: https://mortgages.secure.lloydsbank.co.uk/homes/?action=mortgage_calculator&type=ftb
+max_routes: 8

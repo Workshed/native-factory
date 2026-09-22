@@ -90,7 +90,7 @@ doesn't, and finding out is the point.
 | 8 | Copilot drives the same edit via Custom ACP → `copilot --acp --stdio` | |
 | **9** | **An agent creates, builds and runs a trivial Compose app against the host emulator** | plumbing **proven 2026-09-22** without an agent; `scripts/adb-bridge.sh verify` |
 | 10 | An agent creates, builds and runs a trivial SwiftUI app | **done 2026-09-22** — plus a Maestro flow |
-| 11 | Playwright inspects a website from inside the VM | cheapest item here |
+| 11 | Playwright inspects a website from inside the VM | **done 2026-09-22** — `scripts/inspect-site.ts` |
 | 12 | Document the working setup in README.md | |
 
 **Item 9 comes before 10 and 11 deliberately.** It is gated on two unproven things at
@@ -105,7 +105,8 @@ Then **stop and report** before building the conversion.
 ## The workflow, once the pieces work
 
 **Step 1 — Inspect.** `scripts/inspect-site.ts`, a plain Playwright script with no LLM in
-the loop, at 393×852 and 412×915. Capture routes, screenshots, page text, links, buttons,
+the loop, at 393×852 and 412×915. Run it with `scripts/run-in-guest.sh` — see the mount
+warning below. Capture routes, screenshots, page text, links, buttons,
 forms and accessibility information into `output/reference/`, plus a readable
 `site.md`. No formal schema. The agent can also drive Playwright itself to revisit the
 site when the capture doesn't answer a question.
@@ -162,6 +163,25 @@ attempt at several of them is preserved on the `archive/full-factory-m1` branch.
 | [`vm.md`](vm.md) | Tart's real command set, the two-guest ceiling, and the install traps |
 | The legacy `android` detection | It exits 0, so a presence check passes against the wrong binary |
 
+## The shared mount goes stale — do not run host-edited scripts from it
+
+Measured 2026-09-22, and it cost an hour:
+
+- a **new** file written on the host is read correctly in the guest;
+- a **modified** file keeps returning its old content in the guest, indefinitely;
+- when the new content is longer, the tail is NUL-filled to the new length, which
+  surfaces as `SyntaxError: Unexpected character '\0'` pointing at a line *past the end*
+  of the file;
+- deleting and recreating the file on the host does **not** clear it.
+
+So editing a script on the host and running it from `/Volumes/My Shared Files/` silently
+runs the previous version. `scripts/run-in-guest.sh` pushes the file over
+`tart exec -i` on stdin, which bypasses the mount entirely — use it for anything you are
+actively editing.
+
+The direction that matters for the workflow is unaffected: the guest writes into
+`output/` and reads its own writes, and the host reads the results.
+
 ## Known traps, already paid for
 
 - **`brew install packer` fails** — HashiCorp left homebrew-core for `hashicorp/tap`.
@@ -173,3 +193,8 @@ attempt at several of them is preserved on the `archive/full-factory-m1` branch.
 - **`platform-tools` must be ≥ 35** for remote adb to behave.
 - **Version strings need care** — `v24.5.0` parses as `5.0` under a naive `\b`-anchored
   regex, which reported Node 24 as too old.
+- **ESM ignores `NODE_PATH`.** A bare `import 'playwright'` cannot see a global install;
+  `createRequire` can.
+- **Same-site checks must compare hostnames, not origins.** info.cern.ch serves over
+  https and links over http, so an origin comparison stopped the crawl at one page.
+  `example.com` would never have shown it — test crawlers against a real site.

@@ -154,6 +154,22 @@ placement.
 
 > **Spike result:** not yet run. Record the outcome here.
 
+## Memory
+
+A 16 GB guest plus an Android emulator is a real load on top of an ordinary desktop.
+On 2026-09-24 macOS killed **both** under pressure — 108 GB used of 128 GB with 42 GB in
+the compressor, and the two biggest processes were ours.
+
+Nothing was lost: `output/` lives on the host mount, so the generated apps, the reference
+material and the runs log were all intact. An hour of warm build state was not.
+
+`scripts/doctor.py` now checks this before you start anything, and warns when more memory
+is compressed than is available — which is the state that precedes a kill, and is
+invisible from "GB free" alone.
+
+If you are tight: `tart set nf --memory 12288` costs some Gradle throughput and buys back
+4 GB.
+
 ## Troubleshooting
 
 **`tart exec` hangs.** Almost always a TCC prompt on a mount path in an image without SIP

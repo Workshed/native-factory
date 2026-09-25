@@ -36,6 +36,12 @@ MIN_FREE_GB = 120
 #: adb server over the Tart NAT.
 MIN_PLATFORM_TOOLS = "35.0.0"
 
+#: A 16 GB guest plus an Android emulator needs roughly this much free before starting.
+#: On 2026-09-24 macOS killed both -- the VM and the emulator -- under memory pressure,
+#: with 42 GB sitting in the compressor. Nothing was lost, because output lives on the
+#: host mount, but an hour of build state went with them.
+MIN_FREE_MEMORY_GB = 24
+
 ADB_PORT = 5037
 TART_NAT_CIDR = "192.168.64.0/24"
 TART_TAP = "openai/tools"
@@ -173,6 +179,7 @@ def host_checks() -> Report:
     )
 
     report.add(tool("tart", "tart", fix=f"brew install {TART_TAP}/tart {TART_TAP}/tart-guest-agent"))
+    report.add(check_memory())
 
     if shutil.which("brew"):
         installed = run(["brew", "list", "--formula", "tart-guest-agent"])[0]
@@ -247,6 +254,49 @@ def host_checks() -> Report:
         report.add(Check("android-cli", PASS, path or ""))
 
     return report
+
+
+def check_memory() -> Check:
+    """Free memory, as macOS actually reports it.
+
+    vm_stat's "free" pages alone are misleading on macOS -- it keeps very little strictly
+    free and reclaims from the inactive and purgeable pools on demand. Counting those in
+    matches what is really available to a starting VM.
+    """
+    ok, out = run(["vm_stat"])
+    if not ok:
+        return Check("memory", SKIP, "vm_stat unavailable")
+
+    page = 16384
+    stats = {}
+    for line in out.splitlines():
+        if ":" in line:
+            k, _, v = line.partition(":")
+            digits = v.strip().rstrip(".")
+            if digits.isdigit():
+                stats[k.strip()] = int(digits)
+        if "page size of" in line:
+            for token in line.split():
+                if token.isdigit():
+                    page = int(token)
+
+    available = sum(
+        stats.get(k, 0)
+        for k in ("Pages free", "Pages inactive", "Pages purgeable", "Pages speculative")
+    ) * page / 1024**3
+    compressed = stats.get("Pages occupied by compressor", 0) * page / 1024**3
+    detail = f"{available:.0f} GB available, {compressed:.0f} GB compressed"
+
+    if available < MIN_FREE_MEMORY_GB:
+        return Check("memory", FAIL, detail, f"{available:.0f}GB",
+                     f"A 16 GB guest plus an Android emulator wants ~{MIN_FREE_MEMORY_GB} GB free.\n"
+                     "  macOS has killed both under pressure before. Quit what you can, or\n"
+                     "  lower vm.memory: tart set nf --memory 12288")
+    if compressed > available:
+        return Check("memory", WARN, detail, f"{available:.0f}GB",
+                     "More memory is compressed than is available; the machine is already\n"
+                     "  working hard. Starting a VM and an emulator now may get them killed.")
+    return Check("memory", PASS, detail, f"{available:.0f}GB")
 
 
 # -- guest ----------------------------------------------------------------------------

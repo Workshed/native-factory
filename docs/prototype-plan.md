@@ -7,11 +7,15 @@ See [ADR-0007](adr/0007-prototype-first.md) for why.
 website → iOS + Android workflow. Infrastructure is added when a demonstrated problem
 requires it, and not before.
 
-> **The objective is met.** On 2026-09-22 a real website — the Lloyds first-time-buyer
-> mortgage affordability calculator — was inspected, explored, and reproduced as a native
-> SwiftUI app and a native Compose app, both returning the site's own £247,500 for the
-> same inputs. 4/4 Maestro flows on iOS, 2/2 plus 5 unit tests on Android. One feature
-> slice of one site: enough to prove the concept, not a general system.
+> **The objective is met, on two targets of different shapes.**
+>
+> | | Shape | Result |
+> |---|---|---|
+> | `lloyds-mortgage` (2026-09-22) | multi-step form | both apps return the site's own £247,500; iOS 4/4 flows, Android 2/2 + 5 unit tests |
+> | `lloyds-locations` (2026-09-25) | content and navigation | master/detail over nine offices; 3/3 flows on each platform |
+>
+> The first was built by hand and the workflow extracted from it; the second ran through
+> `scripts/factory.sh` and found three crawler faults the first could not have shown.
 
 ---
 
@@ -204,6 +208,15 @@ actively editing.
 
 The direction that matters for the workflow is unaffected: the guest writes into
 `output/` and reads its own writes, and the host reads the results.
+
+## Known gaps
+
+- **Bundle identifiers are guessed, not specified.** The two iOS builds chose
+  `uk.co.otaku-dev.MortgageCalculator` and `com.example.ourlocations` — inferred from
+  git config and from the app name respectively. Harmless so far, but it belongs in
+  `target.yaml` alongside the Android application id.
+- **The Copilot path is untested.** `NF_PROVIDER=copilot` is implemented and documented
+  and has never been run. Everything to date is `claude-code`.
 
 ## Known traps, already paid for
 

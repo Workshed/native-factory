@@ -230,14 +230,18 @@ Steps 1 and 2 are useful with no console at all, which is the order's main argum
 
 Rough size: 600–900 lines total, most of it in step 4, and none of it clever.
 
-## Open questions
+## Resolved
 
-- **Rejection semantics.** Does Reject re-run `explore` with an amended brief
-  automatically, or stop and wait for a human to edit `targets/<t>/brief.md`? I lean to
-  the latter: less magic, and editing the brief is the actual fix.
-- **How much of the brief belongs in the UI?** A textarea that writes `brief.md` is
-  friendlier than editing a file, but the file is what is versioned. Perhaps the UI edits
-  the file and shows the diff.
-- **Where the console runs.** On the host alongside Tart is simplest. Running it in the
-  guest would put it behind the same VM boundary as everything else, but it needs to start
-  and stop the VM, so it has to be outside.
+**Reject stops and waits.** No automatic re-run. It records the reason, marks the job
+stopped, and leaves `targets/<t>/brief.md` for a human to edit — because amending the
+brief *is* the fix, and a pipeline that re-runs itself against an unchanged brief would
+mostly reproduce the thing that was rejected.
+
+**The UI edits `brief.md` directly**, and shows the diff before writing. The file stays
+the versioned artefact; the textarea is a nicer way to reach it than an editor, not a
+second copy of it.
+
+**The console runs on the host.** It has to start and stop the VM, so it cannot live
+behind the boundary it controls. Worth stating plainly rather than leaving implied: that
+puts it outside every isolation guarantee in `docs/security.md`, which is the price of
+being the thing that manages the isolation.

@@ -11,6 +11,7 @@
 #   approve         mark the reference reviewed
 #   build-ios       agent builds                   -> output/<t>/ios/
 #   build-android   agent builds                   -> output/<t>/android/
+#   capture         screenshots of the finished apps
 #   test            re-run both platforms' Maestro flows
 #   status          what has run, from runs.jsonl
 #   all             inspect, explore, GATE, build-ios, build-android, test
@@ -45,6 +46,43 @@ RUNS="$OUT/runs.jsonl"
 mkdir -p "$OUT"
 
 say()  { printf '\n\033[1m== %s\033[0m\n' "$1"; }
+
+# Each target's output is its own git repository.
+#
+# It answers "how do I get at the code" with a tool everyone already has, and three
+# other things fall out for free: diffs between runs when a site changes and the target
+# is rebuilt, provenance in the commit trail, and no file browser to write. The parent
+# repository ignores output/ entirely, so these are independent and stay unpushed.
+output_repo_init() {
+  [ -d "$OUT/.git" ] && return 0
+  git -C "$OUT" init -q
+  cat > "$OUT/.gitignore" <<'GITIGNORE'
+# Build products, not source.
+build/
+.gradle/
+DerivedData/
+*.xcuserdatad/
+local.properties
+GITIGNORE
+  git -C "$OUT" add -A >/dev/null 2>&1
+  git -C "$OUT" -c user.email=factory@localhost -c user.name="Native Factory" \
+    commit -q -m "Initialise $TARGET output" >/dev/null 2>&1 || true
+}
+
+commit_output() {  # commit_output <stage> [conversation]
+  output_repo_init
+  git -C "$OUT" add -A >/dev/null 2>&1
+  git -C "$OUT" diff --cached --quiet 2>/dev/null && return 0
+
+  local msg="$1"
+  [ -n "${2:-}" ] && msg="$msg
+
+Conversation: $2"
+  git -C "$OUT" -c user.email=factory@localhost -c user.name="Native Factory" \
+    commit -q -m "$msg" >/dev/null 2>&1 || true
+  local n; n="$(git -C "$OUT" show --stat --oneline HEAD 2>/dev/null | tail -1)"
+  echo "  committed: $(git -C "$OUT" rev-parse --short HEAD 2>/dev/null)  ${n:-}"
+}
 fail() { echo "error: $*" >&2; exit 1; }
 cfg()  { sed -n "s/^$1:[[:space:]]*//p" "$DIR/target.yaml" | head -1; }
 
@@ -103,6 +141,7 @@ PY
   done
 
   record "$stage" "$conv" "$sha" "finished"
+  commit_output "$stage" "$conv"
 }
 
 compose() {  # compose <shared-prompt> <extra-file-or-empty> -> /tmp/nf-prompt.md
@@ -133,6 +172,7 @@ stage_inspect() {
     --engine "$(cfg engine || echo chromium)" \
     ${_inc:+--include-path "$_inc"}
   record inspect "" "$(shasum -a 256 scripts/inspect-site.ts | cut -c1-16)" "finished"
+  commit_output inspect
 }
 
 stage_explore() {
@@ -183,11 +223,65 @@ stage_build() {  # stage_build ios|android
   rm -f "$p"
 }
 
+booted_udid() {
+  tart exec "$VM" bash -lc 'xcrun simctl list devices booted -j 2>/dev/null' \
+    | python3 -c 'import json,sys;d=json.load(sys.stdin);print(next((x["udid"] for v in d["devices"].values() for x in v),""))' 2>/dev/null
+}
+
+stage_capture() {
+  say "capture — screenshots of the finished apps"
+  local udid; udid="$(booted_udid)"
+  local found=0
+
+  for platform in ios android; do
+    [ -d "$OUT/$platform" ] || continue
+    local device
+    if [ "$platform" = ios ]; then device="$udid"; else device="emulator-5554"; fi
+    [ -n "$device" ] || { echo "  no $platform device; skipping"; continue; }
+
+    local dest="$GUEST/screenshots/$platform"
+    tart exec "$VM" bash -lc "rm -rf '$dest' && mkdir -p '$dest'"
+
+    # Prefer the app's own capture flow: the agent wrote it alongside the app, so it
+    # follows the real navigation and stays correct as the app changes. Fall back to a
+    # bare launch-and-shoot for builds made before capture.yaml was asked for.
+    if [ -f "$OUT/$platform/.maestro/capture.yaml" ]; then
+      echo "  $platform: running .maestro/capture.yaml"
+      tart exec "$VM" bash -lc "cd '$GUEST/$platform' && maestro --device $device test .maestro/capture.yaml" >/dev/null 2>&1
+      # Maestro writes into ~/.maestro/tests/<timestamp>/; lift the newest run's images out.
+      tart exec "$VM" bash -lc "
+        latest=\$(ls -td ~/.maestro/tests/*/ 2>/dev/null | head -1)
+        [ -n \"\$latest\" ] && find \"\$latest\" -name '*.png' -exec cp {} '$dest/' \;
+      " >/dev/null 2>&1
+    else
+      echo "  $platform: no capture.yaml — launching for a single screenshot"
+      if [ "$platform" = ios ]; then
+        local bundle
+        bundle="$(tart exec "$VM" bash -lc "xcrun simctl listapps $device 2>/dev/null | grep -oE '\"[a-zA-Z0-9.-]+\" =' | tr -d '\" =' | grep -vE '^com.apple' | head -1")"
+        [ -n "$bundle" ] && tart exec "$VM" bash -lc "
+          xcrun simctl launch $device $bundle >/dev/null 2>&1; sleep 4
+          xcrun simctl io $device screenshot '$dest/01-launch.png'" >/dev/null 2>&1
+      else
+        tart exec "$VM" bash -lc "
+          pkg=\$(adb shell pm list packages 2>/dev/null | grep -v android | grep example | head -1 | cut -d: -f2 | tr -d '\r')
+          [ -n \"\$pkg\" ] && adb shell monkey -p \"\$pkg\" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+          sleep 4; adb exec-out screencap -p > '$dest/01-launch.png'" >/dev/null 2>&1
+      fi
+    fi
+
+    local n; n="$(ls "$OUT/screenshots/$platform"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+    echo "  $platform: $n screenshot(s) -> output/$TARGET/screenshots/$platform/"
+    [ "$n" -gt 0 ] && found=$((found + 1))
+  done
+
+  record capture "" "" "$([ "$found" -gt 0 ] && echo captured || echo none)"
+  commit_output capture
+}
+
 stage_test() {
   say "test — re-run the committed Maestro flows"
   local udid rc=0
-  udid="$(tart exec "$VM" bash -lc 'xcrun simctl list devices booted -j 2>/dev/null' \
-    | python3 -c 'import json,sys;d=json.load(sys.stdin);print(next((x["udid"] for v in d["devices"].values() for x in v),""))' 2>/dev/null)"
+  udid="$(booted_udid)"
 
   if [ -d "$OUT/ios/.maestro" ] && [ -n "$udid" ]; then
     tart exec "$VM" bash -lc "cd '$GUEST/ios' && maestro --device $udid test .maestro/" || rc=1
@@ -217,9 +311,10 @@ case "$STAGE" in
   gate)          stage_gate ;;
   build-ios)     stage_build ios ;;
   build-android) stage_build android ;;
+  capture)       stage_capture ;;
   test)          stage_test ;;
   status)        stage_status ;;
   all)           stage_inspect; stage_explore; stage_gate
-                 stage_build ios; stage_build android; stage_test ;;
+                 stage_build ios; stage_build android; stage_test; stage_capture ;;
   *)             fail "unknown stage: $STAGE" ;;
 esac

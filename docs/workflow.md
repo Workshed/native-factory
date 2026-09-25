@@ -15,6 +15,7 @@ scripts/factory.sh lloyds-mortgage all
 | `approve` | mark the reference reviewed | `reference/APPROVED` |
 | `build-ios` | agent builds | `ios/` + `ios/NOTES.md` |
 | `build-android` | agent builds | `android/` + `android/NOTES.md` |
+| `capture` | screenshots of the finished apps | `screenshots/<platform>/` |
 | `test` | re-run the committed Maestro flows | pass/fail |
 | `status` | what has run, from `runs.jsonl` | |
 
@@ -69,6 +70,31 @@ prompts/<stage>.md  +  targets/<t>/brief.md  +  prompts/platform-<p>.md
 Measured on the first real target, about 60% of each prompt was the shared half. The
 per-target brief carries scope, the business rule, branding constraints, and which
 deviations are wanted deliberately.
+
+## Screenshots
+
+`capture` runs each app's own `.maestro/capture.yaml` — a flow the build agent writes
+alongside the app, so it follows the real navigation and stays correct as the app
+changes. Builds made before that was asked for fall back to launching the app and taking
+a single shot, so the stage is useful on existing output rather than only on new builds.
+
+## Each target's output is a git repository
+
+`output/<t>/` is `git init`-ed on first use, and every stage that changes files commits,
+with its conversation id in the message.
+
+This answers "how do I get at the code" with a tool you already have, and three things
+fall out for free: **diffs between runs** when a site changes and the target is rebuilt,
+provenance in the commit trail, and no file browser to write. Build products —
+`build/`, `.gradle/`, `DerivedData/`, `local.properties` — are ignored.
+
+```bash
+git -C output/<t> log --oneline
+git -C output/<t> show --stat HEAD
+```
+
+The parent repository ignores `output/` entirely, so these repositories are independent
+and stay unpushed.
 
 ## Provenance
 

@@ -11,5 +11,10 @@ Finish with the app built, installed and running, with Maestro flows in
 `android/.maestro/` covering the main journey and at least one validation case. Always
 pass `--device emulator-5554` to Maestro.
 
+Also write `android/.maestro/capture.yaml`: a flow that walks the app's main screens
+taking `takeScreenshot` at each, named so the order is obvious (`01-list`, `02-detail`…).
+It is how the pipeline produces screenshots of the finished app, and it lives with the
+app so it stays correct as navigation changes.
+
 Write `android/NOTES.md`: what you built, which deviations you made deliberately and why,
 and anything in the reference material you could not resolve.

@@ -30,10 +30,12 @@
 set -uo pipefail
 
 VM="nf"
+PROJECT=""
 ACTION="${1:-}"; shift || true
 while [ $# -gt 0 ]; do
   case "$1" in
     --vm) VM="$2"; shift 2 ;;
+    --project) PROJECT="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -73,7 +75,14 @@ up() {
   sleep 1
 
   # Guest side: make localhost mean the host's server.
+  #
+  # Kill any guest-local adb daemon first. Running `adb` anything in the guest
+  # auto-starts one, and it binds 127.0.0.1:5037 -- the port the forwarder needs. When
+  # that happens every guest ADB client talks to an empty local daemon and reports no
+  # devices, while the console on 5554 keeps working, which makes it look like a partial
+  # network failure rather than a port collision.
   tart exec "$VM" bash -lc "
+    adb kill-server 2>/dev/null
     pkill -f 'socat.*LISTEN:${ADB_PORT}' 2>/dev/null
     pkill -f 'socat.*LISTEN:${CONSOLE_PORT}' 2>/dev/null
     nohup socat TCP-LISTEN:${ADB_PORT},bind=127.0.0.1,fork,reuseaddr TCP:${gw}:${ADB_PORT} \
@@ -104,10 +113,18 @@ verify() {
     fi
   }
   echo "ADB clients, from inside $VM, with no environment variables:"
-  check "adb CLI"              'adb devices | grep -q "device$"'
-  check "emulator console"     'exec 3<>/dev/tcp/127.0.0.1/5554 && head -c 20 <&3 | grep -q Android'
-  check "Gradle (AGP/adblib)"  'cd "/Volumes/My Shared Files/work/spike-compose" 2>/dev/null && ./gradlew installDebug --console=plain -q'
-  check "Maestro (dadb)"       'cd "/Volumes/My Shared Files/work/spike-compose" 2>/dev/null && maestro test .maestro/smoke.yaml'
+  check "adb CLI"          'adb devices | grep -q "device$"'
+  check "emulator console" 'exec 3<>/dev/tcp/127.0.0.1/5554 && head -c 20 <&3 | grep -q Android'
+
+  # Gradle and Maestro need a project to exercise. Point at one with --project <target>;
+  # without it those two are skipped rather than reported as failures, which is what an
+  # earlier version did after the workspace moved to output/<target>/.
+  if [ -n "$PROJECT" ] && [ -d "output/$PROJECT/android" ]; then
+    check "Gradle (AGP/adblib)" "cd '/Volumes/My Shared Files/work/$PROJECT/android' && ./gradlew installDebug --console=plain -q"
+    check "Maestro (dadb)"      "cd '/Volumes/My Shared Files/work/$PROJECT/android' && maestro --device emulator-5554 test .maestro/"
+  else
+    printf '  skip  Gradle and Maestro (pass --project <target> to exercise them)\n'
+  fi
   echo
   [ "$fails" -eq 0 ] && echo "all clients reach the host emulator" || echo "$fails client(s) failed"
   return "$fails"

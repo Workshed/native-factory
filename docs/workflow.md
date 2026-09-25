@@ -21,6 +21,12 @@ scripts/factory.sh lloyds-mortgage all
 `all` runs the lot, stopping at the gate. `--yes` approves automatically — for batches,
 once you trust the target.
 
+**`explore` is optional.** It exists for flows that advance by button, where a link-
+following crawl reaches screen one and stops. A content site whose navigation is links
+needs only `inspect` — the second target produced ten usable screens that way and no
+`journey.md`. Run `explore` when `site.md` plainly stops short of the thing you care
+about.
+
 ## Why only one gate
 
 `journey.md` costs the agent about half an hour and a human about two minutes to read. A
@@ -37,7 +43,7 @@ a build log.
 
 ```text
 targets/<t>/
-  target.yaml            name, url, max_routes — three fields
+  target.yaml            name, url, max_routes, and engine/include_path when needed
   brief.md               the target-specific half of the prompt
   walk.ts                the driver the explore stage produced
   journey-actions.json   its declarative action list

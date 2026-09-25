@@ -2,6 +2,7 @@
  * Inspect a website and write reference material for the coding agent.
  *
  *   NODE_PATH=$(npm root -g) node scripts/inspect-site.ts <url> --out output/reference
+ *                                            [--engine chromium|webkit] [--max-routes N]
  *
  * NODE_PATH is required: Playwright is a global install and this resolves it via
  * createRequire (see below).
@@ -25,7 +26,22 @@ import type { Browser, Page } from 'playwright';
 // honour it, which keeps this a single file with no install step and no symlink farm.
 // The type-only import above is erased before Node sees it.
 const require = createRequire(import.meta.url);
-const { chromium, devices } = require('playwright');
+const { chromium, webkit, devices } = require('playwright');
+
+/**
+ * Which browser engine to crawl with.
+ *
+ * Chromium is the default because it is what most sites are built against. But headless
+ * Chromium is *detectable*, and some sites block it outright: lloydsbankinggroup.com
+ * serves headless Chromium an "Error 1007" page while returning the real page to plain
+ * `curl` with a default user-agent. Measured 2026-09-25 — blocked with and without
+ * device emulation, and with `--disable-blink-features=AutomationControlled`.
+ *
+ * WebKit is not blocked, needs no display, and is already in the image. It is also the
+ * closer engine to what an iOS user would see, which makes it a reasonable default for
+ * any target that resists Chromium.
+ */
+const ENGINES: Record<string, unknown> = { chromium, webkit };
 
 type Viewport = { name: string; width: number; height: number };
 
@@ -40,6 +56,26 @@ const VIEWPORTS: Viewport[] = [
  *  walks away from the flow being captured. Excluded from the crawl frontier and from
  *  the captured link list. */
 const CHROME = 'header, [role="banner"], footer, [role="contentinfo"], nav, [role="navigation"]';
+
+/**
+ * Where the page's actual content lives, best first.
+ *
+ * Excluding header/footer/nav elements is not enough on a large site. Mega-menus and
+ * promo rails sit in plain divs, so capturing from `body` buried the real headings of a
+ * careers page under "Sustainability", "Our brands" and "2025 annual report" — the same
+ * six site-wide items on every page, with "Edinburgh" nowhere in the list. Anchoring on
+ * the main landmark gave exactly the page's own headings.
+ *
+ * Falls back to `body` when a site marks up no landmark at all.
+ */
+const CONTENT_ROOTS = ['[role="main"]', 'main', 'article', 'body'];
+
+async function contentRoot(page: Page): Promise<string> {
+  for (const selector of CONTENT_ROOTS) {
+    if ((await page.locator(selector).count()) > 0) return selector;
+  }
+  return 'body';
+}
 
 /**
  * Only capture what a user can actually reach.
@@ -77,9 +113,13 @@ type Screen = {
  * links to http:// throughout, so an origin comparison rejected every link and the
  * crawl stopped at one page. example.com would never have shown this.
  */
-function sameSite(href: string, startHost: string): boolean {
+function sameSite(href: string, startHost: string, includePath: string): boolean {
   try {
-    return new URL(href).hostname === startHost;
+    const u = new URL(href);
+    if (u.hostname !== startHost) return false;
+    // Scope the crawl to a section. Without it, "one level deep" from a careers page
+    // reaches job search, the cookie notice and a Workday template.
+    return !includePath || u.pathname.startsWith(includePath);
   } catch {
     return false;
   }
@@ -154,18 +194,21 @@ async function dismissConsent(page: Page): Promise<string | null> {
 
 async function capture(page: Page, url: string, outDir: string): Promise<Screen> {
   const slug = slugify(url);
+  const root = await contentRoot(page);
 
   const screen: Screen = {
     url: redact(url),
     slug,
     title: await page.title(),
-    headings: await page.$$eval('h1,h2,h3', (els) =>
+    headings: await page.$$eval(`${root} h1, ${root} h2, ${root} h3`, (els) =>
       els.map((e) => (e.textContent ?? '').trim()).filter(Boolean).slice(0, 40),
     ),
-    text: (await page.evaluate(() => document.body?.innerText ?? '')).slice(0, 20_000),
+    text: (
+      await page.locator(root).first().innerText().catch(() => '')
+    ).slice(0, 20_000),
     links: (
       await page.$$eval(
-        'a[href]',
+        `${root} a[href]`,
         (els, chrome) =>
           els
             .filter((e) => !e.closest(chrome))
@@ -175,7 +218,9 @@ async function capture(page: Page, url: string, outDir: string): Promise<Screen>
         CHROME,
       )
     ).map((l) => ({ ...l, href: redact(l.href) })),
-    buttons: await page.$$eval('button,[role="button"],input[type="submit"]', (els, vis) =>
+    buttons: await page.$$eval(
+      `${root} button, ${root} [role="button"], ${root} input[type="submit"]`,
+      (els, vis) =>
       els
         .filter(new Function('return ' + vis)() as (e: Element) => boolean)
         .map((e) => ({
@@ -186,7 +231,9 @@ async function capture(page: Page, url: string, outDir: string): Promise<Screen>
         .slice(0, 100),
       VISIBLE,
     ),
-    inputs: await page.$$eval('input,select,textarea', (els, vis) =>
+    inputs: await page.$$eval(
+      `${root} input, ${root} select, ${root} textarea`,
+      (els, vis) =>
       els
         .filter(new Function('return ' + vis)() as (e: Element) => boolean)
         .map((e) => ({
@@ -212,7 +259,7 @@ async function capture(page: Page, url: string, outDir: string): Promise<Screen>
 
     // page.accessibility.snapshot() was removed in Playwright 1.5x; ariaSnapshot is the
     // replacement and is what the agent should read for structure (HANDOFF 4.6).
-    screen.aria[vp.name] = await page.locator('body').ariaSnapshot();
+    screen.aria[vp.name] = await page.locator(root).first().ariaSnapshot();
   }
 
   return screen;
@@ -258,14 +305,27 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const outDir = args.includes('--out') ? args[args.indexOf('--out') + 1] : 'output/reference';
+  const engineName = args.includes('--engine') ? args[args.indexOf('--engine') + 1] : 'chromium';
+  const engine = ENGINES[engineName];
+  if (!engine) {
+    console.error(`unknown --engine ${engineName}; expected one of ${Object.keys(ENGINES).join(', ')}`);
+    process.exit(2);
+  }
   const maxRoutes = Number(args.includes('--max-routes') ? args[args.indexOf('--max-routes') + 1] : 10);
 
   const startHost = new URL(start).hostname;
+  const includePath = args.includes('--include-path') ? args[args.indexOf('--include-path') + 1] : '';
   await mkdir(join(outDir, 'screens'), { recursive: true });
   await mkdir(join(outDir, 'screenshots'), { recursive: true });
 
-  const browser: Browser = await chromium.launch();
-  const context = await browser.newContext({ ...devices['Pixel 8'] });
+  const browser: Browser = await (engine as typeof chromium).launch();
+  // WebKit rejects Chromium's device descriptors, so give it the viewport alone.
+  const context = await browser.newContext(
+    engineName === 'webkit'
+      ? { viewport: { width: 412, height: 915 } }
+      : { ...devices['Pixel 8'] },
+  );
+  process.stdout.write(`  engine: ${engineName}\n`);
   const page = await context.newPage();
 
   const queue = [start];
@@ -300,7 +360,9 @@ async function main(): Promise<void> {
 
     for (const link of screen.links) {
       const href = link.href.replace(/#.*$/, '');
-      if (sameSite(href, startHost) && !seen.has(href.replace(/[?#].*$/, ''))) queue.push(href);
+      if (sameSite(href, startHost, includePath) && !seen.has(href.replace(/[?#].*$/, ''))) {
+        queue.push(href);
+      }
     }
   }
 

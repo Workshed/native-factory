@@ -126,8 +126,12 @@ stage_inspect() {
   local url; url="$(cfg url)"
   [ -n "$url" ] || fail "no url: in $DIR/target.yaml"
   mkdir -p "$OUT/reference"
+  local _inc; _inc="$(cfg include_path)"
   scripts/run-in-guest.sh scripts/inspect-site.ts "$url" \
-    --out "$TARGET/reference" --max-routes "$(cfg max_routes || echo 8)"
+    --out "$TARGET/reference" \
+    --max-routes "$(cfg max_routes || echo 8)" \
+    --engine "$(cfg engine || echo chromium)" \
+    ${_inc:+--include-path "$_inc"}
   record inspect "" "$(shasum -a 256 scripts/inspect-site.ts | cut -c1-16)" "finished"
 }
 

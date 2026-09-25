@@ -31,6 +31,15 @@ No multi-user, no accounts, no database, no scheduling, no retry orchestration, 
 real-time agent streaming (Agent Canvas already does that better than we would). Not a
 service — a **build server for one person**.
 
+**No remote access.** Everything runs on the one machine that has Tart, the VM and the
+emulator, and the console is reached at `127.0.0.1`. That is not a limitation to work
+around later; it is what makes the whole thing small.
+
+Worth being explicit about why a browser at all, then: **it is chosen as a renderer, not
+as a network layer.** Markdown, screenshots and diffs are what browsers are good at and
+terminals are not. Nothing about the console needs HTTP except that HTML is the cheapest
+way to put an image next to a button.
+
 Two facts set that altitude and should not be designed away: jobs take hours, and macOS
 permits **two** VM guests per host. Concurrency is measured in single digits forever.
 
@@ -99,7 +108,7 @@ Three pieces, each of which stays useful on its own.
 
 ```text
    browser
-      │  HTTP (LAN, shared token)
+      │  HTTP on 127.0.0.1
 ┌─────▼──────────────────────────────────────────────┐
 │ console                                            │
 │   read   state.json, runs.jsonl, the filesystem    │
@@ -154,9 +163,10 @@ explore finishes
 The mechanism stays a file, so `scripts/factory.sh <t> approve` still works. One
 mechanism, two front ends — and the file is the audit trail.
 
-This is where a gate finally earns its place: a pause that survives closing the laptop,
-approvable from a phone, with the material to judge rendered beside the button. In a
-terminal it was a prompt you dismissed to get on with it.
+This is where a gate finally earns its place: a pause that survives closing the terminal,
+with `journey.md` rendered and the screenshots beside the button. As a terminal prompt it
+was something to dismiss in order to get on with it — which is precisely what happened,
+twice.
 
 **Reject should be first-class.** In practice the likely failure is "you explored the
 wrong branch" — that wants an amended brief and a re-run of `explore`, not a failed job.
@@ -196,10 +206,15 @@ The brief asked for git from the beginning. This is where it pays.
 
 ## Security
 
-The console can start agents that run with permissions bypassed. It is a **privileged
-control plane**: bind to the LAN, require a shared token, and do not expose it beyond the
-machine's own network. It also serves scraped third-party content, which is fine locally
-and would not be fine published.
+Bind to `127.0.0.1` and nothing else. No token, no auth — there is no second user and no
+second machine, and inventing a credential to protect a loopback socket is theatre.
+
+What that binding is actually protecting matters, though: the console can start agents
+that run with permissions bypassed, so it is a **privileged control plane**. The day it
+is wanted from another machine, the answer is an SSH tunnel, not a listener on `0.0.0.0`
+with a shared secret bolted on.
+
+It also serves scraped third-party content. Fine locally; not something to publish.
 
 ---
 

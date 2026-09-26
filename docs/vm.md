@@ -170,6 +170,24 @@ invisible from "GB free" alone.
 If you are tight: `tart set nf --memory 12288` costs some Gradle throughput and buys back
 4 GB.
 
+## Maestro's iOS driver needs a longer leash
+
+HANDOFF 4.9 flags the Maestro iOS XCTest driver for hangs on new macOS/Xcode pairs. It
+does not hang here, but on a loaded machine it starts slowly enough to exceed its own
+default timeout:
+
+```
+IOSDriverTimeoutException: iOS driver not ready in time, consider increasing
+timeout by configuring MAESTRO_DRIVER_STARTUP_TIMEOUT
+```
+
+With a 16 GB guest and an Android emulator running, four flows that normally take 70
+seconds failed outright; a separate earlier run of the same flows took **18 minutes**.
+Same cause, two very different symptoms — which is what makes it worth writing down.
+
+`factory.sh` sets `MAESTRO_DRIVER_STARTUP_TIMEOUT=180000` for iOS. Override with the
+same variable in the environment.
+
 ## Troubleshooting
 
 **`tart exec` hangs.** Almost always a TCC prompt on a mount path in an image without SIP

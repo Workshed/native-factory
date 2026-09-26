@@ -33,6 +33,14 @@ ASSUME_YES=false
 [ "${3:-}" = "--yes" ] && ASSUME_YES=true
 
 VM="${NF_VM:-nf}"
+
+#: Maestro's iOS XCTest driver is slow to start on a loaded machine and its default
+#: timeout is not generous enough: under a running VM plus an Android emulator it fails
+#: with IOSDriverTimeoutException, and when it does start it can take minutes. HANDOFF
+#: 4.9 flagged this driver for exactly this on new macOS/Xcode pairs. Measured here on
+#: Xcode 26.5 / macOS 26.6.2 -- an earlier 18-minute run of flows that normally take two
+#: had the same cause.
+MAESTRO_IOS_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-180000}"
 CANVAS="${NF_CANVAS:-http://localhost:8000}"
 KEY="${LOCAL_BACKEND_API_KEY:-nf-local-dev-key}"
 PROVIDER="${NF_PROVIDER:-claude-code}"   # any key from OpenHands' ACP provider registry
@@ -247,7 +255,7 @@ stage_capture() {
     # bare launch-and-shoot for builds made before capture.yaml was asked for.
     if [ -f "$OUT/$platform/.maestro/capture.yaml" ]; then
       echo "  $platform: running .maestro/capture.yaml"
-      tart exec "$VM" bash -lc "cd '$GUEST/$platform' && maestro --device $device test .maestro/capture.yaml" >/dev/null 2>&1
+      tart exec "$VM" bash -lc "cd '$GUEST/$platform' && MAESTRO_DRIVER_STARTUP_TIMEOUT=$MAESTRO_IOS_TIMEOUT maestro --device $device test .maestro/capture.yaml" >/dev/null 2>&1
       # Maestro writes into ~/.maestro/tests/<timestamp>/; lift the newest run's images out.
       tart exec "$VM" bash -lc "
         latest=\$(ls -td ~/.maestro/tests/*/ 2>/dev/null | head -1)
@@ -289,7 +297,7 @@ stage_test() {
   local flows
   if [ -d "$OUT/ios/.maestro" ] && [ -n "$udid" ]; then
     flows="$(cd "$OUT/ios/.maestro" && ls *.yaml 2>/dev/null | grep -v '^capture\.yaml$' | tr '\n' ' ')"
-    [ -n "$flows" ] && { tart exec "$VM" bash -lc "cd '$GUEST/ios/.maestro' && maestro --device $udid test $flows" || rc=1; }
+    [ -n "$flows" ] && { tart exec "$VM" bash -lc "cd '$GUEST/ios/.maestro' && MAESTRO_DRIVER_STARTUP_TIMEOUT=$MAESTRO_IOS_TIMEOUT maestro --device $udid test $flows" || rc=1; }
   fi
   if [ -d "$OUT/android/.maestro" ]; then
     flows="$(cd "$OUT/android/.maestro" && ls *.yaml 2>/dev/null | grep -v '^capture\.yaml$' | tr '\n' ' ')"

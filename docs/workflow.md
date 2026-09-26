@@ -1,5 +1,29 @@
 # Running a target through the pipeline
 
+## The console
+
+```bash
+python3 scripts/console.py      # http://127.0.0.1:8765
+```
+
+Stdlib only, loopback only, no auth. It holds **no state of its own**: everything it
+shows is read from `state.json`, `runs.jsonl`, `targets/` and the filesystem, and every
+button shells out to `supervise.sh`. So the CLI and the console are interchangeable, and
+the console being down blocks nothing.
+
+What it is for, in one line: **putting `journey.md` and the screenshots next to the
+Approve button.** That is the only thing here a terminal cannot do, and it is why a gate
+that had been dismissed twice becomes a gate.
+
+It also creates targets, edits `brief.md` (writing the file, showing the diff), renders
+the finished apps' screenshots, and links out to Agent Canvas for watching a live agent —
+which remains the one thing Canvas does better than we would.
+
+One job at a time, enforced: the two-guest ceiling means concurrent runs would contend on
+the VM, the emulator and Canvas.
+
+## The command line
+
 ```bash
 scripts/supervise.sh <target>              # run, or resume where it stopped
 scripts/supervise.sh <target> approve      # release the gate

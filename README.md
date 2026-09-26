@@ -70,11 +70,18 @@ python3 scripts/doctor.py --guest   # via tart exec; expect 0 failed
 Then run a target through the pipeline:
 
 ```bash
-scripts/agent-canvas.sh up                    # UI at http://localhost:8000
-scripts/adb-bridge.sh up                      # only for Android work
+scripts/agent-canvas.sh up                 # agent UI at http://localhost:8000
+scripts/adb-bridge.sh up                   # only for Android work
 
-scripts/factory.sh lloyds-mortgage all        # inspect → explore → GATE → build → test
-scripts/factory.sh lloyds-mortgage status     # what ran, from which prompt
+python3 scripts/console.py                 # http://127.0.0.1:8765
+```
+
+Or from the command line:
+
+```bash
+scripts/supervise.sh lloyds-mortgage       # runs, halts at the gate, resume by re-running
+scripts/supervise.sh lloyds-mortgage approve
+scripts/factory.sh   lloyds-mortgage status
 ```
 
 A target is three files — `target.yaml`, `brief.md`, and whatever driver the explore

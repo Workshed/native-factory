@@ -1,9 +1,49 @@
 # Running a target through the pipeline
 
 ```bash
-scripts/factory.sh <target> <stage> [--yes]
-scripts/factory.sh lloyds-mortgage all
+scripts/supervise.sh <target>              # run, or resume where it stopped
+scripts/supervise.sh <target> approve      # release the gate
+scripts/supervise.sh <target> reject "…"   # stop, with a reason
+scripts/supervise.sh <target> state        # machine-readable current state
+scripts/supervise.sh <target> reset        # forget progress; keeps output
+
+scripts/factory.sh <target> <stage>        # one stage, directly
 ```
+
+`supervise.sh` decides **which** stage runs next; `factory.sh` decides **how** a stage
+runs and remains usable on its own. That split matters the first time the supervisor has
+a bug.
+
+### It exits at the gate rather than sleeping in it
+
+A supervisor that waits is a process to supervise in turn — a pid to track, something to
+restart after a reboot, something to leak. Exiting means state lives entirely in
+`state.json`, resuming is just running the command again, and completed stages are
+skipped because they are recorded:
+
+```
+✓ inspect (done)
+✓ gate (approved)
+== build-ios
+```
+
+The console's Approve button therefore writes a file and re-invokes the supervisor. It
+signals nothing.
+
+### Rejection
+
+`reject` records the reason in `state.json` and `runs.jsonl`, then stops and tells you to
+edit `targets/<t>/brief.md`. It deliberately does not re-run anything: the brief is the
+fix, and re-running against an unchanged brief would mostly reproduce whatever was
+rejected.
+
+### The plan is per target
+
+Default: `inspect explore gate build-ios build-android capture test`. Override with
+`plan:` in `target.yaml` — `lloyds-locations` omits `explore` because its navigation is
+links, so the deterministic crawl already reaches everything. `gate` sits in the plan as
+a pseudo-stage so that moving it is a matter of editing a plan rather than editing a
+script.
 
 ## Stages
 
@@ -16,7 +56,7 @@ scripts/factory.sh lloyds-mortgage all
 | `build-ios` | agent builds | `ios/` + `ios/NOTES.md` |
 | `build-android` | agent builds | `android/` + `android/NOTES.md` |
 | `capture` | screenshots of the finished apps | `screenshots/<platform>/` |
-| `test` | re-run the committed Maestro flows | pass/fail |
+| `test` | re-run the committed Maestro flows, excluding `capture.yaml` | pass/fail |
 | `status` | what has run, from `runs.jsonl` | |
 
 `all` runs the lot, stopping at the gate. `--yes` approves automatically — for batches,

@@ -283,11 +283,17 @@ stage_test() {
   local udid rc=0
   udid="$(booted_udid)"
 
+  # Run the flows individually, skipping capture.yaml: it belongs to the `capture`
+  # stage, and running it here makes `test` report a screenshot walk as a passing test.
+  # Distinct stages should stay distinct even when the mechanism is shared.
+  local flows
   if [ -d "$OUT/ios/.maestro" ] && [ -n "$udid" ]; then
-    tart exec "$VM" bash -lc "cd '$GUEST/ios' && maestro --device $udid test .maestro/" || rc=1
+    flows="$(cd "$OUT/ios/.maestro" && ls *.yaml 2>/dev/null | grep -v '^capture\.yaml$' | tr '\n' ' ')"
+    [ -n "$flows" ] && { tart exec "$VM" bash -lc "cd '$GUEST/ios/.maestro' && maestro --device $udid test $flows" || rc=1; }
   fi
   if [ -d "$OUT/android/.maestro" ]; then
-    tart exec "$VM" bash -lc "cd '$GUEST/android' && maestro --device emulator-5554 test .maestro/" || rc=1
+    flows="$(cd "$OUT/android/.maestro" && ls *.yaml 2>/dev/null | grep -v '^capture\.yaml$' | tr '\n' ' ')"
+    [ -n "$flows" ] && { tart exec "$VM" bash -lc "cd '$GUEST/android/.maestro' && maestro --device emulator-5554 test $flows" || rc=1; }
   fi
   record test "" "" "$([ $rc -eq 0 ] && echo passed || echo failed)"
   return $rc

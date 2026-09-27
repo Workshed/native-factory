@@ -1,0 +1,6 @@
+name: Widget Shop
+# A dev server on this machine's loopback. scripts/site-bridge.sh makes it reachable from
+# the guest at the same URL, so nothing here is rewritten.
+url: http://localhost:3000/
+max_routes: 4
+plan: inspect gate build-ios capture test

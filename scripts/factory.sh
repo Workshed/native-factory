@@ -94,6 +94,12 @@ Conversation: $2"
 fail() { echo "error: $*" >&2; exit 1; }
 cfg()  { sed -n "s/^$1:[[:space:]]*//p" "$DIR/target.yaml" | head -1; }
 
+# `cfg` succeeds and prints nothing for an absent key, so `$(cfg x || echo default)`
+# never fires the fallback -- it silently passes an empty string. That reached the
+# crawler as `--engine ''` and only surfaced on the first target that set neither engine
+# nor a plan mentioning it.
+cfg_or() { local v; v="$(cfg "$1")"; printf '%s' "${v:-$2}"; }
+
 record() {  # record <stage> <conversation-id> <prompt-sha> <outcome>
   python3 - "$RUNS" "$1" "$2" "$3" "$4" <<'PY'
 import json, sys
@@ -161,6 +167,26 @@ compose() {  # compose <shared-prompt> <extra-file-or-empty> -> /tmp/nf-prompt.m
   echo "$out"
 }
 
+#: A site on the host's loopback needs a forwarder on each side before the guest can
+#: reach it. Idempotent and cheap, so stages bring it up rather than refusing and telling
+#: the user to — unlike the emulator, which is a real thing to start.
+site_bridge_if_local() {
+  local url; url="$(cfg url)"
+  case "$url" in
+    *://localhost*|*://127.0.0.1*|*://0.0.0.0*|*://\[::1\]*) ;;
+    *) return 0 ;;
+  esac
+
+  local port
+  port="$(printf '%s' "$url" | sed -nE 's#^[a-z]+://[^:/]+:([0-9]+).*#\1#p')"
+  [ -n "$port" ] || case "$url" in https://*) port=443 ;; *) port=80 ;; esac
+
+  local extra; extra="$(cfg forward_ports)"
+  echo "  local site: forwarding port(s) $port $extra"
+  scripts/site-bridge.sh up $port $extra || fail "could not bridge the local site"
+  scripts/site-bridge.sh verify "$port" || fail "the guest cannot reach $url — is the dev server running?"
+}
+
 require_canvas() {
   curl -sf -o /dev/null --max-time 5 "$CANVAS/" \
     || fail "Agent Canvas is not reachable at $CANVAS — run scripts/agent-canvas.sh up"
@@ -173,11 +199,12 @@ stage_inspect() {
   local url; url="$(cfg url)"
   [ -n "$url" ] || fail "no url: in $DIR/target.yaml"
   mkdir -p "$OUT/reference"
+  site_bridge_if_local
   local _inc; _inc="$(cfg include_path)"
   scripts/run-in-guest.sh scripts/inspect-site.ts "$url" \
     --out "$TARGET/reference" \
-    --max-routes "$(cfg max_routes || echo 8)" \
-    --engine "$(cfg engine || echo chromium)" \
+    --max-routes "$(cfg_or max_routes 8)" \
+    --engine "$(cfg_or engine chromium)" \
     ${_inc:+--include-path "$_inc"}
   record inspect "" "$(shasum -a 256 scripts/inspect-site.ts | cut -c1-16)" "finished"
   commit_output inspect
@@ -186,6 +213,7 @@ stage_inspect() {
 stage_explore() {
   say "explore — the agent walks the flow"
   require_canvas
+  site_bridge_if_local   # the agent drives Playwright itself and needs the same route
   local p; p="$(compose explore.md)"
   converse explore "$p" 80
   rm -f "$p"

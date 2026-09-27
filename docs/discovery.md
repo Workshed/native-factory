@@ -36,6 +36,36 @@ resists Chromium.
 **Symptom to recognise:** one screen captured, a title containing "Error", and a
 body that mentions retrying later.
 
+## Sites on this machine's loopback
+
+A dev server at `http://localhost:3000` is unreachable from the guest, where `localhost`
+is the guest. `scripts/site-bridge.sh` forwards **both ways**, and the pipeline brings it
+up automatically for any target whose URL is loopback:
+
+```text
+host   socat <gateway>:3000 -> 127.0.0.1:3000     expose to the vmnet only
+guest  socat 127.0.0.1:3000 -> <gateway>:3000     make localhost mean the host
+```
+
+The guest-side half is the one that matters, and it is the same insight as the adb bridge
+(ADR-0002): rather than asking every client to honour a rewritten address, make the
+client's assumption true. Two consequences, both of which earn it:
+
+- **The URL never changes.** `http://localhost:3000` works verbatim in the guest, so
+  nothing rewrites anything and the reference material records the URL you gave.
+- **The `Host` header stays `localhost:3000`.** Dev servers that check it — Vite and
+  webpack-dev-server reject unknown hosts by default — see exactly what they expect. The
+  obvious alternative, binding your dev server to `0.0.0.0` and pointing the guest at the
+  host's IP, publishes your work to the network *and* requires an `allowedHosts` entry.
+
+Extra ports (an API on 3001, say) go in `forward_ports:`.
+
+```bash
+scripts/site-bridge.sh up 3000 3001
+scripts/site-bridge.sh verify 3000
+scripts/site-bridge.sh down
+```
+
 ## Scoping the crawl
 
 - `include_path: /careers/where-we-are` — confines the frontier to a section. Without it,

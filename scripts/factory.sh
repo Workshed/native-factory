@@ -356,7 +356,13 @@ stage_capture() {
     # bare launch-and-shoot for builds made before capture.yaml was asked for.
     if [ -f "$OUT/$platform/.maestro/capture.yaml" ]; then
       echo "  $platform: running .maestro/capture.yaml"
-      tart exec "$VM" bash -lc "cd '$GUEST/$platform' && MAESTRO_DRIVER_STARTUP_TIMEOUT=$MAESTRO_IOS_TIMEOUT maestro --device $device test .maestro/capture.yaml" >/dev/null 2>&1
+      # A failed capture flow writes no screenshots at all -- Maestro does not persist
+      # the ones it already took. Silently reporting "0 screenshots" makes a broken flow
+      # look like an app with nothing to show, so say which it is.
+      if ! tart exec "$VM" bash -lc "cd '$GUEST/$platform' && MAESTRO_DRIVER_STARTUP_TIMEOUT=$MAESTRO_IOS_TIMEOUT maestro --device $device test .maestro/capture.yaml" >/dev/null 2>&1; then
+        echo "  $platform: capture.yaml FAILED — no screenshots are written when it does." >&2
+        echo "             Run it directly to see where: maestro --device $device test .maestro/capture.yaml" >&2
+      fi
       # Maestro writes into ~/.maestro/tests/<timestamp>/; lift the newest run's images out.
       tart exec "$VM" bash -lc "
         latest=\$(ls -td ~/.maestro/tests/*/ 2>/dev/null | head -1)

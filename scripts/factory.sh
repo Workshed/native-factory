@@ -44,7 +44,7 @@ VM="${NF_VM:-nf}"
 MAESTRO_IOS_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-180000}"
 CANVAS="${NF_CANVAS:-http://localhost:8000}"
 KEY="${LOCAL_BACKEND_API_KEY:-nf-local-dev-key}"
-PROVIDER="${NF_PROVIDER:-claude-code}"   # any key from OpenHands' ACP provider registry
+PROVIDER="${NF_PROVIDER:-claude-code}"
 
 DIR="targets/$TARGET"
 OUT="output/$TARGET"
@@ -55,6 +55,24 @@ RUNS="$OUT/runs.jsonl"
 mkdir -p "$OUT"
 
 say()  { printf '\n\033[1m== %s\033[0m\n' "$1"; }
+
+# Resolve a provider name to the agent settings OpenHands expects.
+#
+# Six providers are built in and are named directly. GitHub Copilot is not one of them:
+# it is reached through the `custom` provider with its own native ACP server, exactly as
+# HANDOFF 4.1 says. Passing "copilot" as `acp_server` -- which this script did until the
+# registry was actually read -- is rejected, so "switching agent is one variable" was
+# true for five providers and false for the one most wanted.
+provider_settings() {
+  case "$1" in
+    claude-code|codex|gemini-cli|kimi-code|opencode|pi)
+      printf '{"agent_kind":"acp","acp_server":"%s"}' "$1" ;;
+    copilot)
+      printf '{"agent_kind":"acp","acp_server":"custom","acp_command":["copilot","--acp","--stdio"]}' ;;
+    *)
+      fail "unknown provider: $1 (claude-code, codex, gemini-cli, kimi-code, opencode, pi, copilot)" ;;
+  esac
+}
 
 # Each target's output is its own git repository.
 #
@@ -120,12 +138,12 @@ converse() {  # converse <stage> <prompt-file> <max-iterations>
   local stage="$1" prompt_file="$2" iters="$3"
   local sha; sha="$(shasum -a 256 "$prompt_file" | cut -c1-16)"
 
-  local payload; payload="$(python3 - "$prompt_file" "$GUEST" "$PROVIDER" "$iters" <<'PY'
+  local payload; payload="$(python3 - "$prompt_file" "$GUEST" "$(provider_settings "$PROVIDER")" "$iters" <<'PY'
 import json, sys
-prompt, workdir, provider, iters = sys.argv[1:5]
+prompt, workdir, agent_settings, iters = sys.argv[1:5]
 print(json.dumps({
     "workspace": {"kind": "LocalWorkspace", "working_dir": workdir},
-    "agent_settings": {"agent_kind": "acp", "acp_server": provider},
+    "agent_settings": json.loads(agent_settings),
     "initial_message": {"role": "user",
                         "content": [{"type": "text", "text": open(prompt).read()}],
                         "run": True},

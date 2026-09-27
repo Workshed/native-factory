@@ -215,8 +215,11 @@ The direction that matters for the workflow is unaffected: the guest writes into
   `uk.co.otaku-dev.MortgageCalculator` and `com.example.ourlocations` — inferred from
   git config and from the app name respectively. Harmless so far, but it belongs in
   `target.yaml` alongside the Android application id.
-- **The Copilot path is untested.** `NF_PROVIDER=copilot` is implemented and documented
-  and has never been run. Everything to date is `claude-code`.
+- **The Copilot path is untested.** `NF_PROVIDER=copilot` has never driven a build;
+  everything to date is `claude-code`. It was also *wrong* until 2026-09-27 — the runner
+  passed the provider name through as `acp_server`, which OpenHands only accepts for its
+  six built-ins. Copilot needs the `custom` provider. The settings shape is now verified
+  accepted by the agent server; what remains unproven is a login and an actual build.
 
 ## Known traps, already paid for
 

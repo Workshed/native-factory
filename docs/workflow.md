@@ -179,8 +179,17 @@ scripts/factory.sh lloyds-mortgage status
 NF_PROVIDER=copilot scripts/factory.sh <target> build-ios
 ```
 
-Any key from OpenHands' ACP provider registry. Nothing else changes: not the crawl, not
-the prompts, not the project layout, not the build. That is the ACP seam doing its job.
+Nothing else changes: not the crawl, not the prompts, not the project layout, not the
+build. That is the ACP seam doing its job.
+
+| Provider | How it is reached |
+|---|---|
+| `claude-code`, `codex`, `gemini-cli`, `kimi-code`, `opencode`, `pi` | built into OpenHands; named directly |
+| `copilot` | **not** built in — the `custom` provider with `copilot --acp --stdio` |
+
+That distinction is invisible from the outside and was wrong here for a while: the runner
+passed the provider name straight through as `acp_server`, which works for the six
+built-ins and is rejected for Copilot. `provider_settings()` now resolves it.
 
 ## Preconditions
 

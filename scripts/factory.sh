@@ -11,6 +11,7 @@
 #   approve         mark the reference reviewed
 #   build-ios       agent builds                   -> output/<t>/ios/
 #   build-android   agent builds                   -> output/<t>/android/
+#   source          sync supplementary source into sources/<target>/
 #   capture         screenshots of the finished apps
 #   test            re-run both platforms' Maestro flows
 #   status          what has run, from runs.jsonl
@@ -164,6 +165,37 @@ compose() {  # compose <shared-prompt> <extra-file-or-empty> -> /tmp/nf-prompt.m
   printf '\n\n---\n\n' >> "$out"
   cat "$DIR/brief.md" >> "$out"
   [ -n "${2:-}" ] && { printf '\n' >> "$out"; cat "$2" >> "$out"; }
+
+  # Identities, so they stop being guessed. Two builds previously chose
+  # uk.co.otaku-dev.MortgageCalculator and com.example.ourlocations -- one inferred from
+  # git config, one from the app name.
+  local bid aid
+  bid="$(cfg bundle_id)"; aid="$(cfg application_id)"
+  if [ -n "$bid$aid" ]; then
+    {
+      printf '\n## Identifiers\n\nUse exactly these; do not invent or infer one.\n\n'
+      [ -n "$bid" ] && printf -- '- iOS bundle identifier: `%s`\n' "$bid"
+      [ -n "$aid" ] && printf -- '- Android application id: `%s`\n' "$aid"
+    } >> "$out"
+  fi
+
+  if [ -d "sources/$TARGET" ]; then
+    cat >> "$out" <<SOURCE
+
+## Supplementary source
+
+A checkout of the site's own source is mounted **read-only** at
+\`/Volumes/My Shared Files/sources/$TARGET\`.
+
+Read it for API shapes, validation rules and business logic that observing the running
+site cannot settle — an exact rounding rule, a full list of error codes, a threshold.
+
+It is reference material, not a translation target. The product is what the site *does*;
+its source is a second witness, not the specification. Do not port its structure, its
+components or its naming into the native apps, and do not modify it.
+SOURCE
+  fi
+
   echo "$out"
 }
 
@@ -185,6 +217,46 @@ site_bridge_if_local() {
   echo "  local site: forwarding port(s) $port $extra"
   scripts/site-bridge.sh up $port $extra || fail "could not bridge the local site"
   scripts/site-bridge.sh verify "$port" || fail "the guest cannot reach $url — is the dev server running?"
+}
+
+#: Supplementary source, for API shapes and business rules. Never translated -- the
+#: product is what the site does, not what its code says (the brief, and twice confirmed
+#: in practice).
+#:
+#: Synced into sources/<target>/ rather than mounted per target, because Tart fixes
+#: mounts at `tart run` time and a mount per target would mean restarting the VM for
+#: every job. One read-only `sources` mount covers all of them.
+sync_source() {
+  local src_path src_repo dest
+  src_path="$(cfg source_path)"
+  src_repo="$(cfg source_repo)"
+  [ -n "$src_path$src_repo" ] || return 0
+
+  dest="sources/$TARGET"
+  mkdir -p sources
+
+  if [ -n "$src_path" ]; then
+    [ -d "$src_path" ] || fail "source_path does not exist: $src_path"
+    echo "  source: syncing $src_path"
+    rsync -a --delete \
+      --exclude node_modules --exclude .next --exclude dist --exclude build \
+      --exclude target --exclude .venv --exclude __pycache__ \
+      "${src_path%/}/" "$dest/" || fail "could not sync $src_path"
+  else
+    if [ -d "$dest/.git" ]; then
+      echo "  source: updating $src_repo"
+      git -C "$dest" pull --quiet --ff-only || echo "  warning: could not fast-forward" >&2
+    else
+      echo "  source: cloning $src_repo"
+      # Public repositories only. A token for a private one would sit in a VM whose agent
+      # runs with a bypassed shell -- see docs/security.md. Clone it yourself and use
+      # source_path instead.
+      git clone --quiet --depth 50 "$src_repo" "$dest" || fail "could not clone $src_repo"
+    fi
+  fi
+
+  local n; n="$(find "$dest" -type f 2>/dev/null | wc -l | tr -d ' ')"
+  echo "  source: $n file(s) at /Volumes/My Shared Files/sources/$TARGET (read-only)"
 }
 
 require_canvas() {
@@ -251,6 +323,7 @@ stage_build() {  # stage_build ios|android
   say "build-$platform"
   require_canvas
   [ -f "$OUT/reference/APPROVED" ] || fail "reference not approved — run: scripts/factory.sh $TARGET approve"
+  sync_source
   [ "$platform" = "android" ] && { scripts/adb-bridge.sh verify >/dev/null 2>&1 \
     || fail "no Android device reachable — run scripts/adb-bridge.sh up"; }
 
@@ -353,6 +426,7 @@ case "$STAGE" in
   gate)          stage_gate ;;
   build-ios)     stage_build ios ;;
   build-android) stage_build android ;;
+  source)        say "source"; sync_source ;;
   capture)       stage_capture ;;
   test)          stage_test ;;
   status)        stage_status ;;

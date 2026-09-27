@@ -60,7 +60,8 @@ tart clone ghcr.io/cirruslabs/macos-tahoe-xcode:26.5 nf
 tart set nf --cpu 8 --memory 16384
 tart run --no-graphics \
   --dir=work:$PWD/output \
-  --dir=scripts:$PWD/scripts:ro nf &
+  --dir=scripts:$PWD/scripts:ro \
+  --dir=sources:$PWD/sources:ro nf &
 
 tart exec nf bash -l "/Volumes/My Shared Files/scripts/setup-guest.sh"
 tart exec -it nf /bin/zsh -l        # then: claude -> /login   (or copilot -> /login)

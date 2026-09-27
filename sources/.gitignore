@@ -1,0 +1,4 @@
+# Synced copies of third-party source, read by the agent for APIs and business rules.
+# Never our code; never committed.
+*
+!.gitignore

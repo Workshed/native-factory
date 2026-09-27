@@ -79,6 +79,7 @@ script.
 | `approve` | mark the reference reviewed | `reference/APPROVED` |
 | `build-ios` | agent builds | `ios/` + `ios/NOTES.md` |
 | `build-android` | agent builds | `android/` + `android/NOTES.md` |
+| `source` | sync supplementary source (runs before each build) | `sources/<target>/` |
 | `capture` | screenshots of the finished apps | `screenshots/<platform>/` |
 | `test` | re-run the committed Maestro flows, excluding `capture.yaml` | pass/fail |
 | `status` | what has run, from `runs.jsonl` | |
@@ -108,7 +109,8 @@ a build log.
 
 ```text
 targets/<t>/
-  target.yaml            name, url, max_routes, and engine/include_path when needed
+  target.yaml            name, url, max_routes; engine/include_path/plan when needed;
+                         source_path or source_repo; bundle_id and application_id
   brief.md               the target-specific half of the prompt
   walk.ts                the driver the explore stage produced
   journey-actions.json   its declarative action list

@@ -66,7 +66,10 @@ Consequences, designed in from Milestone 1:
 
 ```bash
 tart list                                   # what exists, what is running
-tart run --no-graphics --dir=work:$PWD/output nf &
+tart run --no-graphics \
+  --dir=work:$PWD/output \
+  --dir=scripts:$PWD/scripts:ro \
+  --dir=sources:$PWD/sources:ro nf &
 tart exec -it nf /bin/zsh -l                # a shell in the guest
 tart ip nf                                  # then ssh admin@<ip> if the agent is down
 tart stop nf                                # stops; the VM stays, inspectable
@@ -92,6 +95,19 @@ so `output/reference`, `output/ios` and `output/android` are visible to the agen
 Only that directory is exposed. Never the home directory, never host SSH or cloud
 credentials.
 
+Three mounts, and the split is deliberate: the agent must write the generated projects,
+and has no business rewriting its own provisioning or the source it is reading.
+
+| Mount | Contents | Access |
+|---|---|---|
+| `work` | `output/` — reference material, generated apps, screenshots | read-write |
+| `scripts` | the pipeline's own scripts | read-only |
+| `sources` | synced copies of targets' source checkouts | read-only |
+
+`sources` is one mount for all targets rather than one per target, because Tart fixes
+mounts at `tart run` time — a mount per target would mean restarting the VM for every
+job.
+
 A read-only mount is `--dir=name:path:ro`. The prototype has no use for one yet; the
 earlier design used stage-scoped read-only mounts so an agent could not rewrite the
 specification it was judged against, and that concern returns with an evaluator
@@ -115,7 +131,10 @@ Created by hand, then provisioned with `scripts/setup-guest.sh`:
 #     https://ghcr.io/v2/cirruslabs/macos-tahoe-xcode/manifests/26.5 | grep -i docker-content-digest
 tart clone ghcr.io/cirruslabs/macos-tahoe-xcode:26.5 nf
 tart set nf --cpu 8 --memory 16384
-tart run --no-graphics --dir=work:$PWD/output nf &
+tart run --no-graphics \
+  --dir=work:$PWD/output \
+  --dir=scripts:$PWD/scripts:ro \
+  --dir=sources:$PWD/sources:ro nf &
 tart exec -it nf bash -lc '/Volumes/My\ Shared\ Files/work/../scripts/setup-guest.sh'
 ```
 

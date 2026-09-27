@@ -124,6 +124,7 @@ travels in the same prompt as your instructions. Read
 | | |
 |---|---|
 | [`docs/workflow.md`](docs/workflow.md) | running a target: stages, the gate, prompt composition |
+| [`docs/copilot-handover.md`](docs/copilot-handover.md) | **task brief** — proving the GitHub Copilot path on a second machine |
 | [`docs/prototype-plan.md`](docs/prototype-plan.md) | what we are building, in what order, and what is done |
 | [`docs/architecture.md`](docs/architecture.md) | how it fits together |
 | [`docs/vm.md`](docs/vm.md) | Tart, provisioning, traps |

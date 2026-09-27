@@ -76,7 +76,7 @@ Ignore header and footer navigation entirely.
 what is asked, the options, the validation, and the screenshot filename. End with what the
 final screen shows and **which numbers it reports**.
 
-State the underlying rule if you can infer one. "The result is 5.5× the income entered"
-is worth more to the implementation than a screenshot of the result.
+State the underlying rule if you can infer one. "The result is a fixed multiple of the
+income entered" is worth more to the implementation than a screenshot of the result.
 
 Finish by reporting: how many steps, what is asked at each, and what the result gives you.

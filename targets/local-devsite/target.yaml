@@ -6,7 +6,7 @@ max_routes: 4
 plan: inspect gate build-ios capture test
 
 # The site's own source, read for APIs and business rules — never translated.
-source_path: /tmp/devsite
+# source_path: /path/to/a/checkout   # optional: read for APIs and business rules
 
 # Explicit, so the build does not infer one from git config or the app name.
 bundle_id: dev.nativefactory.widgetshop

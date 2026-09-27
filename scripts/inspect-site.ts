@@ -32,9 +32,9 @@ const { chromium, webkit, devices } = require('playwright');
  * Which browser engine to crawl with.
  *
  * Chromium is the default because it is what most sites are built against. But headless
- * Chromium is *detectable*, and some sites block it outright: lloydsbankinggroup.com
- * serves headless Chromium an "Error 1007" page while returning the real page to plain
- * `curl` with a default user-agent. Measured 2026-09-25 — blocked with and without
+ * Chromium is *detectable*, and some sites block it outright. One target served headless
+ * Chromium an "Error 1007" page while returning the real page to plain `curl` with a
+ * default user-agent — so it was not user-agent filtering. Blocked with and without
  * device emulation, and with `--disable-blink-features=AutomationControlled`.
  *
  * WebKit is not blocked, needs no display, and is already in the image. It is also the
@@ -87,7 +87,7 @@ async function contentRoot(page: Page): Promise<string> {
  * checkVisibility() rather than measuring boxes. Custom-styled radios are routinely
  * zero-size `opacity: 0` inputs behind a styled label -- invisible by any pixel measure,
  * but the option they represent is on screen and clickable. A getBoundingClientRect
- * test reported the Lloyds calculator as having no inputs at all; checkVisibility keeps
+ * test reported a real multi-step form as having no inputs at all; checkVisibility keeps
  * them while still excluding anything inside a `display: none` subtree.
  */
 const VISIBLE = `(e) => e.checkVisibility({ contentVisibilityAuto: true })`;
@@ -141,13 +141,16 @@ function slugify(url: string): string {
 /**
  * Strip anything credential- or identity-shaped before a URL is written to disk.
  *
- * Not just secrets: analytics parameters carry persistent visitor identifiers. A real
- * Lloyds URL arrived with an `LBGAc` blob that base64-decodes to Adobe Marketing Cloud
- * state including an MCMID -- a stable identifier for the person who copied the link.
- * That must not end up committed in reference/, so long opaque values are redacted by
- * shape as well as by name.
+ * Not just secrets: analytics parameters carry persistent visitor identifiers. One URL
+ * supplied for a target carried a vendor-specific analytics blob that base64-decoded to
+ * Adobe Marketing Cloud state including an MCMID -- a stable identifier for whoever
+ * copied the link. That must not end up committed in reference/.
+ *
+ * Hence redaction by **shape** as well as by name: the vendor prefixes are endless and
+ * naming them one by one is a losing game, whereas "a long opaque value" catches the
+ * ones nobody has heard of.
  */
-const IDENTITY_PARAMS = /token|key|secret|password|auth|session|sig|lbgac|mcmid|gclid|fbclid|_ga|utm_/i;
+const IDENTITY_PARAMS = /token|key|secret|password|auth|session|sig|mcmid|gclid|fbclid|_ga|utm_/i;
 
 function redact(url: string): string {
   try {
@@ -341,8 +344,8 @@ async function main(): Promise<void> {
     process.stdout.write(`  ${url}\n`);
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-      // Client-rendered pages are a shell at domcontentloaded -- the Lloyds calculator
-      // renders as "Loading component..." and nothing else. Wait for the network to go
+      // Client-rendered pages are a shell at domcontentloaded -- one target rendered as
+      // "Loading component..." and nothing else. Wait for the network to go
       // quiet, then settle. networkidle can legitimately never fire (polling, analytics
       // beacons, websockets), so a timeout here is not an error.
       await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});

@@ -3,7 +3,7 @@
 # Run one target through the pipeline.
 #
 #     scripts/factory.sh <target> <stage> [--yes]
-#     scripts/factory.sh lloyds-mortgage all
+#     scripts/factory.sh my-target all
 #
 # Stages
 #   inspect         deterministic crawl            -> output/<t>/reference/
@@ -184,9 +184,8 @@ compose() {  # compose <shared-prompt> <extra-file-or-empty> -> /tmp/nf-prompt.m
   cat "$DIR/brief.md" >> "$out"
   [ -n "${2:-}" ] && { printf '\n' >> "$out"; cat "$2" >> "$out"; }
 
-  # Identities, so they stop being guessed. Two builds previously chose
-  # uk.co.otaku-dev.MortgageCalculator and com.example.ourlocations -- one inferred from
-  # git config, one from the app name.
+  # Identities, so they stop being guessed. Early builds inferred one from the machine's
+  # git config and another from the app name -- neither a decision an agent should make.
   local bid aid
   bid="$(cfg bundle_id)"; aid="$(cfg application_id)"
   if [ -n "$bid$aid" ]; then

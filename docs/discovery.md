@@ -17,10 +17,9 @@ a full-page screenshot per viewport, and an ARIA snapshot. Plus a readable `site
 
 ## Engine: when Chromium will not do
 
-Chromium is the default. Some sites block headless Chromium outright —
-`lloydsbankinggroup.com` serves it an `Error 1007` page while returning the real page to
-plain `curl` with a default user-agent, so it is headless detection rather than
-user-agent filtering. Measured 2026-09-25:
+Chromium is the default. Some sites block headless Chromium outright — one target served
+it an `Error 1007` page while returning the real page to plain `curl` with a default
+user-agent, so it is headless detection rather than user-agent filtering. Measured:
 
 | Configuration | Result |
 |---|---|
@@ -89,8 +88,8 @@ exactly the page's own content.
 
 After `domcontentloaded` the crawler waits for `networkidle` (tolerating the timeout —
 analytics beacons and polling mean it can legitimately never fire) and then settles
-briefly. Without this the Lloyds calculator captured as a header, "Loading component…"
-and a footer.
+briefly. Without this, a client-rendered calculator captured as a header,
+"Loading component…" and a footer.
 
 ## Cookie banners
 
@@ -105,6 +104,7 @@ as having no inputs at all.
 ## Redaction
 
 URLs are redacted before they are written: parameters whose names look like credentials
-or identity (`token`, `auth`, `lbgac`, `mcmid`, `_ga`, `utm_`…) and any long opaque value.
-A URL supplied for the first target carried an Adobe Marketing Cloud blob containing a
+or identity (`token`, `auth`, `mcmid`, `_ga`, `utm_`…) **and any long opaque value** —
+vendor prefixes are endless, so shape catches the ones nobody has heard of.
+A URL supplied for one target carried an Adobe Marketing Cloud blob containing a
 persistent visitor id.

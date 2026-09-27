@@ -64,7 +64,7 @@ rejected.
 ### The plan is per target
 
 Default: `inspect explore gate build-ios build-android capture test`. Override with
-`plan:` in `target.yaml` — `lloyds-locations` omits `explore` because its navigation is
+`plan:` in `target.yaml` — a content site omits `explore` because its navigation is
 links, so the deterministic crawl already reaches everything. `gate` sits in the plan as
 a pseudo-stage so that moving it is a matter of editing a plan rather than editing a
 script.
@@ -89,7 +89,7 @@ once you trust the target.
 
 **`explore` is optional.** It exists for flows that advance by button, where a link-
 following crawl reaches screen one and stops. A content site whose navigation is links
-needs only `inspect` — the second target produced ten usable screens that way and no
+needs only `inspect` — a content target produced ten usable screens that way and no
 `journey.md`. Run `explore` when `site.md` plainly stops short of the thing you care
 about.
 
@@ -170,7 +170,7 @@ produced this, from which prompt" — the question that was unanswerable when ru
 hand-typed `curl` calls.
 
 ```bash
-scripts/factory.sh lloyds-mortgage status
+scripts/factory.sh my-target status
 ```
 
 ## Switching coding agent

@@ -69,9 +69,9 @@ targets:
   android: { application_id: com.example.app }
 ```
 
-`bundle_id` and `application_id` are here because both builds so far *guessed* them —
-`uk.co.otaku-dev.MortgageCalculator` from git config, `com.example.ourlocations` from the
-app name.
+`bundle_id` and `application_id` are here because early builds *guessed* them — one
+inferred from the machine's git config, another from the app name. Neither is a
+decision an agent should be making.
 
 ### localhost needs the same trick as adb
 

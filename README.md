@@ -80,9 +80,9 @@ python3 scripts/console.py                 # http://127.0.0.1:8765
 Or from the command line:
 
 ```bash
-scripts/supervise.sh lloyds-mortgage       # runs, halts at the gate, resume by re-running
-scripts/supervise.sh lloyds-mortgage approve
-scripts/factory.sh   lloyds-mortgage status
+scripts/supervise.sh my-target       # runs, halts at the gate, resume by re-running
+scripts/supervise.sh my-target approve
+scripts/factory.sh   my-target status
 ```
 
 A target is three files — `target.yaml`, `brief.md`, and whatever driver the explore

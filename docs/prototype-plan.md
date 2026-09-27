@@ -11,8 +11,9 @@ requires it, and not before.
 >
 > | | Shape | Result |
 > |---|---|---|
-> | `lloyds-mortgage` (2026-09-22) | multi-step form | both apps return the site's own £247,500; iOS 4/4 flows, Android 2/2 + 5 unit tests |
-> | `lloyds-locations` (2026-09-25) | content and navigation | master/detail over nine offices; 3/3 flows on each platform |
+> | first target | multi-step form | both apps reproduce the site's own calculation exactly; iOS 4/4 flows, Android 2/2 + 5 unit tests |
+> | second target | content and navigation | master/detail over nine pages; 3/3 flows on each platform |
+> | third target | local dev server | proves the localhost path end to end |
 >
 > The first was built by hand and the workflow extracted from it; the second ran through
 > `scripts/factory.sh` and found three crawler faults the first could not have shown.
@@ -121,19 +122,18 @@ warning below.
 **The deterministic crawl only reaches screen one of an interactive flow.** It follows
 links; a multi-step form advances by button. That is by design — the plan's answer is
 that the agent drives Playwright itself when the capture does not answer a question, and
-that works: on the Lloyds mortgage calculator the agent walked 8 interactions across 5
-screens to a real result, wrote its own replayable driver, and produced a 17 KB
-`journey.md` documenting every question, option, hint, validation message and the
-business rule behind the answer.
+that works: on a multi-step mortgage affordability calculator the agent walked 8
+interactions across 5 screens to a real result, wrote its own replayable driver, and
+produced a 17 KB `journey.md` documenting every question, option, hint, validation
+message and the business rule behind the answer.
 
 Two things it did that were not asked for and are worth keeping:
 
 - captured **unanswered and answered states separately**, which is the state inventory a
   native implementation needs;
-- listed the site's **instruction-shaped text** ("Please select 'Buy a home'", "Let us
-  know your income") in a section of its own, noting that these address the bank's
-  customer and were not acted on. That is the untrusted-content boundary holding in
-  practice, not just in the prompt. Capture routes, screenshots, page text, links, buttons,
+- listed the site's **instruction-shaped text** — imperative copy aimed at the site's own
+  users — in a section of its own, noting that it was not acted on. That is the
+  untrusted-content boundary holding in practice, not just in the prompt. Capture routes, screenshots, page text, links, buttons,
 forms and accessibility information into `output/reference/`, plus a readable
 `site.md`. No formal schema. The agent can also drive Playwright itself to revisit the
 site when the capture doesn't answer a question.
@@ -211,10 +211,9 @@ The direction that matters for the workflow is unaffected: the guest writes into
 
 ## Known gaps
 
-- **Bundle identifiers are guessed, not specified.** The two iOS builds chose
-  `uk.co.otaku-dev.MortgageCalculator` and `com.example.ourlocations` — inferred from
-  git config and from the app name respectively. Harmless so far, but it belongs in
-  `target.yaml` alongside the Android application id.
+- ~~Bundle identifiers are guessed~~ — **fixed.** Early builds inferred them from the
+  machine's git config and from the app name. `bundle_id` and `application_id` now go
+  in `target.yaml` and are passed to the build as "use exactly these".
 - **The Copilot path is untested.** `NF_PROVIDER=copilot` has never driven a build;
   everything to date is `claude-code`. It was also *wrong* until 2026-09-27 — the runner
   passed the provider name through as `acp_server`, which OpenHands only accepts for its

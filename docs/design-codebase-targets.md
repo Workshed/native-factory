@@ -128,7 +128,7 @@ important to leave to good intentions. It is also diffable, so progress is visib
 | `survey` | agent reads a repository and writes `SURVEY.md`: module layout, navigation, state management, test setup, conventions | **yes** |
 | `baseline` | record behavioural Maestro flows and screenshots of the app as it is | |
 | `task` | implement one task, on its own branch | |
-| `verify` | existing tests + baseline flows + build, both platforms | |
+| `verify` | baseline flows, then tick the task off and commit | |
 | `capture` | after-screenshots, paired with the baseline | |
 
 `survey` is the equivalent of `journey.md`, and the gate it carries is the same bet: a
@@ -184,8 +184,11 @@ producing a diff nobody can review.
    `SURVEY.md`, and the gate halts on it.
 2. ~~**`baseline`**~~ — **built 2026-10-06.** Proven against a real iOS app: three
    behavioural flows, seven screenshots, and a `BASELINE.md` naming its own gaps.
-3. **`task` + `verify` + branching** — the loop itself.
-4. **Plan parsing and box-ticking** — mechanical once the loop works.
+3. ~~**`task` + `verify` + branching**~~ — **built 2026-10-06.** One task per run,
+   branched from the base rather than the previous task, verified against the baseline,
+   and stopping on regression.
+4. ~~**Plan parsing and box-ticking**~~ — **built**, same pass; the two were not
+   separable in practice.
 5. **Console: task list, before/after pairs** — presentation last, as before.
 
 Steps 1 and 2 are useful with no task loop at all, which is the same argument that
@@ -265,6 +268,20 @@ run on 26.5 cannot build a project saved in a 27-only format.
 Before committing to it: does the rest of the team and CI have Xcode 27, is it
 reversible, and do the `xcodebuild` invocations change? The last one would need
 `prompts/platform-ios.md`, `prompts/survey.md` and the `capture` stage revisiting.
+
+## What still needs fitting to real apps
+
+The mechanics are built and the shapes are settled. Two things are deliberately thin
+until they meet a real codebase, because guessing them against a 147-line app would be
+fitting the pipeline to the toy:
+
+- **`verify` currently runs the baseline flows and the build, not your test suites.**
+  Wiring those in needs to know what they are, how long they take and whether they
+  currently pass — all of which the survey reports. Expect a per-target
+  `test_command_ios` / `test_command_android` once that is known.
+- **Task sizing.** "One task" is whatever a line of the plan says, and a line can mean an
+  hour or a week. The loop will tell you quickly which; the fix is editing the plan, not
+  the pipeline.
 
 ## Open questions
 

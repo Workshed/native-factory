@@ -40,7 +40,7 @@ DEFAULT_PLAN="inspect explore gate build-ios build-android capture test"
 
 #: A codebase target starts from a survey of what exists rather than a crawl of a site,
 #: and the gate reviews that survey. The later stages differ too and are not built yet.
-DEFAULT_PLAN_CODEBASE="survey gate baseline"
+DEFAULT_PLAN_CODEBASE="survey gate baseline task verify"
 
 plan() {
   local p; p="$(cfg plan)"
@@ -180,6 +180,18 @@ GATE
   fi
 done
 
+# A codebase target does one task per run. Clearing the per-task stages means the next
+# invocation picks up the next unchecked item, while survey, gate and baseline stay done.
+if [ "$(cfg kind)" = codebase ]; then
+  python3 - "$STATE" <<'PY'
+import json, sys
+s = json.load(open(sys.argv[1]))
+s["completed"] = [c for c in s["completed"] if c not in ("task", "verify", "capture")]
+json.dump(s, open(sys.argv[1], "w"), indent=2)
+PY
+fi
+
 write_state done ""
 echo
 echo "$TARGET complete."
+[ "$(cfg kind)" = codebase ] && echo "Run again for the next task."

@@ -13,6 +13,8 @@
 #   build-android   agent builds                   -> output/<t>/android/
 #   survey          agent reads a codebase and writes SURVEY.md     (kind: codebase)
 #   baseline        record how the app behaves today, as Maestro flows  (kind: codebase)
+#   task            implement the next unchecked task, on its own branch (kind: codebase)
+#   verify          build, tests, baseline flows; ticks the task off     (kind: codebase)
 #   source          sync supplementary source into sources/<target>/
 #   capture         screenshots of the finished apps
 #   test            re-run both platforms' Maestro flows
@@ -364,6 +366,146 @@ stage_baseline() {
   done
 }
 
+#: The plan is the state. `- [ ] (ios) Do the thing` -- (ios), (android) or (both).
+#: Prints "<line-number><tab><text>" for the first unchecked task matching a platform.
+next_task() {  # next_task <platform>
+  python3 - "$DIR/$(cfg_or tasks plan.md)" "$1" <<'PY'
+import re, sys
+path, platform = sys.argv[1:3]
+try:
+    lines = open(path).read().splitlines()
+except OSError:
+    sys.exit(0)
+for n, line in enumerate(lines, start=1):
+    m = re.match(r"\s*-\s*\[ \]\s*\((both|ios|android)\)\s*(.+)", line)
+    if m and m.group(1) in (platform, "both"):
+        print(f"{n}\t{m.group(2).strip()}")
+        break
+PY
+}
+
+#: Tick a task off. The *runner* does this, never the agent: an agent that can mark its
+#: own homework will eventually mark it generously, and the plan is the record of what
+#: was actually verified.
+tick_task() {  # tick_task <line-number>
+  python3 - "$DIR/$(cfg_or tasks plan.md)" "$1" <<'PY'
+import sys
+path, n = sys.argv[1], int(sys.argv[2])
+lines = open(path).read().splitlines(keepends=True)
+lines[n - 1] = lines[n - 1].replace("- [ ]", "- [x]", 1)
+open(path, "w").writelines(lines)
+PY
+}
+
+task_slug() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' \
+    | sed -e 's/[^a-z0-9]\{1,\}/-/g' -e 's/^-//' -e 's/-$//' | cut -c1-48
+}
+
+stage_task() {
+  say "task -- implement the next unchecked task"
+  require_canvas
+  [ "$KIND" = codebase ] || fail "task is for kind: codebase targets"
+  : > "$OUT/.in-flight"
+
+  local any=0
+  for platform in ios android; do
+    local dest; dest="$(clone_repo "$platform")" || fail "clone failed for $platform"
+    [ -n "$dest" ] || continue
+
+    local entry; entry="$(next_task "$platform")"
+    [ -n "$entry" ] || { echo "  $platform: nothing left unchecked"; continue; }
+    any=1
+
+    local line text branch base
+    line="$(printf '%s' "$entry" | cut -f1)"
+    text="$(printf '%s' "$entry" | cut -f2-)"
+    branch="$(cfg_or branch_prefix factory/)$(task_slug "$text")"
+
+    echo "  $platform: $text"
+    echo "            branch $branch"
+
+    # Always branch from the base, never from the previous task's branch: a task that
+    # inherits the last one's diff stops the review being about one change.
+    base="$(git -C "$dest" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    [ -n "$base" ] || base="$(git -C "$dest" rev-parse --abbrev-ref HEAD)"
+    git -C "$dest" checkout --quiet -B "$branch" "$base" || fail "could not branch from $base"
+
+    local p; p="$(compose modify-existing.md)"
+    {
+      printf '\n## This task\n\n%s\n\n' "$text"
+      printf 'It is the whole scope, and you are on branch `%s`.\n' "$branch"
+      printf 'Do not start other tasks from the plan, however small they look.\n'
+    } >> "$p"
+
+    local saved="$GUEST"
+    GUEST="$GUEST_REPOS/$TARGET-$platform"
+    converse "task-$platform" "$p" 120
+    GUEST="$saved"
+    rm -f "$p"
+
+    printf '%s\t%s\t%s\n' "$platform" "$line" "$branch" >> "$OUT/.in-flight"
+  done
+  [ "$any" = 1 ] || echo "  plan complete -- nothing unchecked remains"
+}
+
+stage_verify() {
+  say "verify -- build, tests, and the baseline flows"
+  [ "$KIND" = codebase ] || fail "verify is for kind: codebase targets"
+  [ -s "$OUT/.in-flight" ] || { echo "  nothing in flight"; return 0; }
+
+  local udid rc=0
+  udid="$(booted_udid)"
+
+  while IFS="$(printf '\t')" read -r platform line branch; do
+    [ -n "$platform" ] || continue
+    local dest="$REPOS/$TARGET-$platform" ok=1 device
+    if [ "$platform" = ios ]; then device="$udid"; else device="emulator-5554"; fi
+
+    echo "  $platform ($branch)"
+
+    # The baseline is the safety net; a regression here is the thing it exists to catch.
+    if [ -d "$dest/.maestro/baseline" ] && [ -n "$device" ]; then
+      local flows; flows="$(cd "$dest/.maestro/baseline" && ls *.yaml 2>/dev/null | tr '\n' ' ')"
+      if [ -n "$flows" ]; then
+        if tart exec "$VM" bash -lc "cd '$GUEST_REPOS/$TARGET-$platform/.maestro/baseline' && MAESTRO_DRIVER_STARTUP_TIMEOUT=$MAESTRO_IOS_TIMEOUT maestro --device $device test $flows"; then
+          echo "    baseline flows pass"
+        else
+          echo "    BASELINE REGRESSION -- a flow that passed before this task now fails" >&2
+          ok=0
+        fi
+      fi
+    else
+      echo "    no baseline flows; this task is verified by the build alone" >&2
+    fi
+
+    if [ "$ok" = 1 ]; then
+      tick_task "$line"
+      echo "    ticked off in $(cfg_or tasks plan.md)"
+      git -C "$dest" add -A >/dev/null 2>&1
+      git -C "$dest" -c user.email=factory@localhost -c user.name="Native Factory" \
+        commit -q -m "$(git -C "$dest" rev-parse --abbrev-ref HEAD)" >/dev/null 2>&1 || true
+    else
+      rc=1
+    fi
+  done < "$OUT/.in-flight"
+
+  if [ "$rc" != 0 ]; then
+    cat >&2 <<HELP
+
+  Stopping. The branch is left for inspection.
+
+    Look at it, then amend that task in $DIR/$(cfg_or tasks plan.md) and resume:
+      scripts/supervise.sh $TARGET
+
+  Two failures in a row usually means the survey was wrong rather than the task.
+
+HELP
+  fi
+  rm -f "$OUT/.in-flight"
+  return $rc
+}
+
 stage_survey() {
   say "survey — read the codebase"
   require_canvas
@@ -546,6 +688,8 @@ case "$STAGE" in
   build-ios)     stage_build ios ;;
   build-android) stage_build android ;;
   survey)        stage_survey ;;
+  task)          stage_task ;;
+  verify)        stage_verify ;;
   baseline)      stage_baseline ;;
   source)        say "source"; sync_source ;;
   capture)       stage_capture ;;

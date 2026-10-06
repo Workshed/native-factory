@@ -12,6 +12,7 @@
 #   build-ios       agent builds                   -> output/<t>/ios/
 #   build-android   agent builds                   -> output/<t>/android/
 #   survey          agent reads a codebase and writes SURVEY.md     (kind: codebase)
+#   baseline        record how the app behaves today, as Maestro flows  (kind: codebase)
 #   source          sync supplementary source into sources/<target>/
 #   capture         screenshots of the finished apps
 #   test            re-run both platforms' Maestro flows
@@ -306,32 +307,67 @@ clone_repo() {  # clone_repo <platform> -> prints the clone path, or nothing
   echo "$dest"
 }
 
-stage_survey() {
-  say "survey — read the codebase"
-  require_canvas
-  [ "$KIND" = codebase ] || fail "survey is for kind: codebase targets"
+#: Run one conversation per platform of a codebase target, inside that platform's clone.
+#: Shared by survey and baseline, which differ only in their prompt and what they produce.
+per_repo_stage() {  # per_repo_stage <stage> <prompt> <iterations> <expected-file>
+  local stage="$1" prompt_name="$2" iters="$3" expect="$4" any=0
+  [ "$KIND" = codebase ] || fail "$stage is for kind: codebase targets"
 
-  local any=0
   for platform in ios android; do
     local dest; dest="$(clone_repo "$platform")" || fail "clone failed for $platform"
     [ -n "$dest" ] || continue
     any=1
 
-    echo "  surveying $platform"
-    local p; p="$(compose survey.md)"
-    local saved_guest="$GUEST"
+    echo "  $platform"
+    local p; p="$(compose "$prompt_name")"
+    local saved="$GUEST"
     GUEST="$GUEST_REPOS/$TARGET-$platform"
-    converse "survey-$platform" "$p" 60
-    GUEST="$saved_guest"
+    converse "$stage-$platform" "$p" "$iters"
+    GUEST="$saved"
     rm -f "$p"
 
-    if [ -f "$dest/SURVEY.md" ]; then
-      echo "  $platform: SURVEY.md written ($(wc -l < "$dest/SURVEY.md" | tr -d ' ') lines)"
+    if [ -f "$dest/$expect" ]; then
+      echo "    $expect written ($(wc -l < "$dest/$expect" | tr -d ' ') lines)"
     else
-      echo "  $platform: WARNING — no SURVEY.md was written" >&2
+      echo "    WARNING -- no $expect was written" >&2
     fi
   done
   [ "$any" = 1 ] || fail "no repo_ios or repo_android in $DIR/target.yaml"
+}
+
+stage_baseline() {
+  say "baseline -- record how the app behaves today"
+  require_canvas
+  per_repo_stage baseline baseline.md 80 BASELINE.md
+
+  # Flows live with the code and must be versioned with it; screenshots are review
+  # material and would only bloat the repository, so they are lifted out to output/.
+  for platform in ios android; do
+    local dest="$REPOS/$TARGET-$platform"
+    [ -d "$dest/.maestro/baseline" ] || continue
+    mkdir -p "$OUT/baseline/$platform"
+    # Lift screenshots out of the clone. `takeScreenshot` writes relative to the working
+    # directory, so where they land depends on where the agent ran Maestro from -- the
+    # repo, or Maestro's own debug directory. Collect from both and move rather than
+    # copy, so none are left to be committed with the branch.
+    find "$REPOS/$TARGET-$platform/.maestro" -name '*.png' -exec mv {} "$OUT/baseline/$platform/" \; 2>/dev/null || true
+    tart exec "$VM" bash -lc "
+      latest=\$(ls -td ~/.maestro/tests/*/ 2>/dev/null | head -1)
+      [ -n \"\$latest\" ] && find \"\$latest\" -name '*.png' \
+        -exec cp {} '$GUEST/baseline/$platform/' \; 2>/dev/null
+    " >/dev/null 2>&1 || true
+    rmdir "$REPOS/$TARGET-$platform/.maestro/baseline/screenshots" 2>/dev/null || true
+    local n f
+    n="$(ls "$OUT/baseline/$platform"/*.png 2>/dev/null | wc -l | tr -d ' ')"
+    f="$(ls "$dest/.maestro/baseline"/*.yaml 2>/dev/null | wc -l | tr -d ' ')"
+    echo "  $platform: $f flow(s), $n screenshot(s)"
+  done
+}
+
+stage_survey() {
+  say "survey — read the codebase"
+  require_canvas
+  per_repo_stage survey survey.md 60 SURVEY.md
 }
 
 require_canvas() {
@@ -510,6 +546,7 @@ case "$STAGE" in
   build-ios)     stage_build ios ;;
   build-android) stage_build android ;;
   survey)        stage_survey ;;
+  baseline)      stage_baseline ;;
   source)        say "source"; sync_source ;;
   capture)       stage_capture ;;
   test)          stage_test ;;

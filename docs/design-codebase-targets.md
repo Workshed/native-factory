@@ -37,7 +37,9 @@ restyling and still catch the thing that actually matters: navigation broken, st
 a screen that no longer loads.
 
 Screenshots are kept, but as **review material rather than assertions**. Before-and-after
-on every task is the single cheapest thing that makes UI rework reviewable.
+on every task is the single cheapest thing that makes UI rework reviewable. They are
+lifted out of the clone into `output/<target>/baseline/`, so the branch that eventually
+gets pushed carries flows but not a pile of PNGs.
 
 This is characterisation testing through the UI. It is not a substitute for unit tests,
 and the design should say so rather than imply the problem is solved.
@@ -180,7 +182,8 @@ producing a diff nobody can review.
    a `repos/` mount, repository cloning, `prompts/survey.md` and
    `prompts/modify-existing.md`. Proven against a real iOS project: 388 lines of
    `SURVEY.md`, and the gate halts on it.
-2. **`baseline`** — the safety net, before any task runs.
+2. ~~**`baseline`**~~ — **built 2026-10-06.** Proven against a real iOS app: three
+   behavioural flows, seven screenshots, and a `BASELINE.md` naming its own gaps.
 3. **`task` + `verify` + branching** — the loop itself.
 4. **Plan parsing and box-ticking** — mechanical once the loop works.
 5. **Console: task list, before/after pairs** — presentation last, as before.
@@ -237,6 +240,31 @@ things are interleaved. The mitigation is structural rather than hopeful — sta
 separate functions, so divergence adds files rather than nesting — but it is worth
 watching, and worth splitting if `factory.sh` starts needing `kind` in more than those
 four places.
+
+## Parked: JSON project files and Xcode 27
+
+Xcode 27 reportedly supports a JSON-based project format in place of `project.pbxproj`.
+Unverified here — it postdates what this project can check from inside the VM — but if
+true it dissolves the survey's sharpest finding, that a hand-written `project.pbxproj`
+with no shared scheme makes adding a test target a plumbing exercise before it is a
+testing one.
+
+**Checked:** a stable `macos-tahoe-xcode:27` image exists, and the guest's macOS 26.6.2
+clears the floor Xcode 27 needs. So the toolchain path is open; it costs a ~69 GB pull,
+a re-provision and re-authenticating the agents.
+
+**Recommendation if it is pursued: convert the projects by hand, not as a task.** It
+touches both apps' project files at once, which is the largest blast radius available
+here; reviewing an agent's conversion to a format the reviewer is also new to is harder
+than doing the conversion; and the survey's value is computed against a file that would
+be about to be replaced.
+
+Sequencing matters — convert, *then* rebuild the VM on Xcode 27, then survey. A survey
+run on 26.5 cannot build a project saved in a 27-only format.
+
+Before committing to it: does the rest of the team and CI have Xcode 27, is it
+reversible, and do the `xcodebuild` invocations change? The last one would need
+`prompts/platform-ios.md`, `prompts/survey.md` and the `capture` stage revisiting.
 
 ## Open questions
 

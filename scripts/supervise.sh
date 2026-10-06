@@ -40,7 +40,7 @@ DEFAULT_PLAN="inspect explore gate build-ios build-android capture test"
 
 #: A codebase target starts from a survey of what exists rather than a crawl of a site,
 #: and the gate reviews that survey. The later stages differ too and are not built yet.
-DEFAULT_PLAN_CODEBASE="survey gate"
+DEFAULT_PLAN_CODEBASE="survey gate baseline"
 
 plan() {
   local p; p="$(cfg plan)"

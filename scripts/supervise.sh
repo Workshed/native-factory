@@ -38,7 +38,18 @@ cfg() { sed -n "s/^$1:[[:space:]]*//p" "$DIR/target.yaml" | head -1; }
 #: deterministic crawl already reaches everything. Override with `plan:` in target.yaml.
 DEFAULT_PLAN="inspect explore gate build-ios build-android capture test"
 
-plan() { local p; p="$(cfg plan)"; echo "${p:-$DEFAULT_PLAN}"; }
+#: A codebase target starts from a survey of what exists rather than a crawl of a site,
+#: and the gate reviews that survey. The later stages differ too and are not built yet.
+DEFAULT_PLAN_CODEBASE="survey gate"
+
+plan() {
+  local p; p="$(cfg plan)"
+  [ -n "$p" ] && { echo "$p"; return; }
+  case "$(cfg kind)" in
+    codebase) echo "$DEFAULT_PLAN_CODEBASE" ;;
+    *)        echo "$DEFAULT_PLAN" ;;
+  esac
+}
 
 write_state() {  # write_state <status> <stage> [message]
   python3 - "$STATE" "$TARGET" "$1" "$2" "${3:-}" "$(plan)" <<'PY'
@@ -140,6 +151,10 @@ for stage in $(plan); do
     # people to click past it.
     doc="$OUT/reference/site.md"; shots="$OUT/reference/screenshots/"
     [ -f "$OUT/reference/journey.md" ] && { doc="$OUT/reference/journey.md"; shots="$OUT/reference/journey/"; }
+    # A codebase target's gate reviews the survey, which lives in the clone.
+    for s in repos/"$TARGET"-ios/SURVEY.md repos/"$TARGET"-android/SURVEY.md; do
+      [ -f "$s" ] && { doc="$s"; shots="repos/"; break; }
+    done
 
     write_state awaiting-approval gate "review $doc"
     cat <<GATE

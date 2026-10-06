@@ -131,7 +131,11 @@ important to leave to good intentions. It is also diffable, so progress is visib
 
 `survey` is the equivalent of `journey.md`, and the gate it carries is the same bet: a
 survey costs an agent half an hour and a human five minutes, and it is where "it has
-misunderstood the architecture" is cheap to catch. After that the gate moves per task —
+misunderstood the architecture" is cheap to catch. On the first real run it found that
+the project has no shared scheme checked in and no test action configured — so *any*
+coverage task has to solve project-file plumbing before it can add a single test. That is
+precisely the kind of thing that turns a one-hour task into a lost afternoon when nobody
+looked first. After that the gate moves per task —
 approve the task plan, not the whole backlog.
 
 ## Branching
@@ -172,8 +176,10 @@ producing a diff nobody can review.
 
 ## Build order
 
-1. **`survey` + the modification prompt** — useful immediately, and the survey is worth
-   reading even if nothing else gets built.
+1. ~~**`survey` + the modification prompt**~~ — **built 2026-10-06.** `kind: codebase`,
+   a `repos/` mount, repository cloning, `prompts/survey.md` and
+   `prompts/modify-existing.md`. Proven against a real iOS project: 388 lines of
+   `SURVEY.md`, and the gate halts on it.
 2. **`baseline`** — the safety net, before any task runs.
 3. **`task` + `verify` + branching** — the loop itself.
 4. **Plan parsing and box-ticking** — mechanical once the loop works.

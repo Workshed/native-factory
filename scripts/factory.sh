@@ -11,6 +11,7 @@
 #   approve         mark the reference reviewed
 #   build-ios       agent builds                   -> output/<t>/ios/
 #   build-android   agent builds                   -> output/<t>/android/
+#   survey          agent reads a codebase and writes SURVEY.md     (kind: codebase)
 #   source          sync supplementary source into sources/<target>/
 #   capture         screenshots of the finished apps
 #   test            re-run both platforms' Maestro flows
@@ -47,8 +48,19 @@ KEY="${LOCAL_BACKEND_API_KEY:-nf-local-dev-key}"
 PROVIDER="${NF_PROVIDER:-claude-code}"
 
 DIR="targets/$TARGET"
+KIND="$(sed -n 's/^kind:[[:space:]]*//p' "$DIR/target.yaml" | head -1)"
+KIND="${KIND:-website}"
+
 OUT="output/$TARGET"
 GUEST="/Volumes/My Shared Files/work/$TARGET"
+
+# A codebase target works in a *clone* of the user's repository, under repos/, mounted
+# read-write. Cloning rather than mounting their working tree directly is the whole
+# safety story: their checkout is never touched, and a branch is pushed back when the
+# work is worth keeping. One repos/ mount covers every target, because Tart fixes mounts
+# at `tart run` time.
+REPOS="repos"
+GUEST_REPOS="/Volumes/My Shared Files/repos"
 RUNS="$OUT/runs.jsonl"
 
 [ -d "$DIR" ] || { echo "no target at $DIR" >&2; exit 1; }
@@ -276,6 +288,52 @@ sync_source() {
   echo "  source: $n file(s) at /Volumes/My Shared Files/sources/$TARGET (read-only)"
 }
 
+#: Clone (or update) the repository for one platform of a codebase target.
+clone_repo() {  # clone_repo <platform> -> prints the clone path, or nothing
+  local platform="$1" src dest
+  src="$(cfg "repo_$platform")"
+  [ -n "$src" ] || return 0
+  dest="$REPOS/$TARGET-$platform"
+
+  mkdir -p "$REPOS"
+  if [ -d "$dest/.git" ]; then
+    git -C "$dest" fetch --quiet origin 2>/dev/null || true
+  else
+    [ -d "$src" ] || [ -n "${src##*/*}" ] || true
+    echo "  cloning $src -> $dest" >&2
+    git clone --quiet "$src" "$dest" || { echo "could not clone $src" >&2; return 1; }
+  fi
+  echo "$dest"
+}
+
+stage_survey() {
+  say "survey — read the codebase"
+  require_canvas
+  [ "$KIND" = codebase ] || fail "survey is for kind: codebase targets"
+
+  local any=0
+  for platform in ios android; do
+    local dest; dest="$(clone_repo "$platform")" || fail "clone failed for $platform"
+    [ -n "$dest" ] || continue
+    any=1
+
+    echo "  surveying $platform"
+    local p; p="$(compose survey.md)"
+    local saved_guest="$GUEST"
+    GUEST="$GUEST_REPOS/$TARGET-$platform"
+    converse "survey-$platform" "$p" 60
+    GUEST="$saved_guest"
+    rm -f "$p"
+
+    if [ -f "$dest/SURVEY.md" ]; then
+      echo "  $platform: SURVEY.md written ($(wc -l < "$dest/SURVEY.md" | tr -d ' ') lines)"
+    else
+      echo "  $platform: WARNING — no SURVEY.md was written" >&2
+    fi
+  done
+  [ "$any" = 1 ] || fail "no repo_ios or repo_android in $DIR/target.yaml"
+}
+
 require_canvas() {
   curl -sf -o /dev/null --max-time 5 "$CANVAS/" \
     || fail "Agent Canvas is not reachable at $CANVAS — run scripts/agent-canvas.sh up"
@@ -344,7 +402,9 @@ stage_build() {  # stage_build ios|android
   [ "$platform" = "android" ] && { scripts/adb-bridge.sh verify >/dev/null 2>&1 \
     || fail "no Android device reachable — run scripts/adb-bridge.sh up"; }
 
-  local p; p="$(compose build-native-apps.md "prompts/platform-$platform.md")"
+  local base="build-native-apps.md"
+  [ "$KIND" = codebase ] && base="modify-existing.md"
+  local p; p="$(compose "$base" "prompts/platform-$platform.md")"
   converse "build-$platform" "$p" 120
   rm -f "$p"
 }
@@ -449,6 +509,7 @@ case "$STAGE" in
   gate)          stage_gate ;;
   build-ios)     stage_build ios ;;
   build-android) stage_build android ;;
+  survey)        stage_survey ;;
   source)        say "source"; sync_source ;;
   capture)       stage_capture ;;
   test)          stage_test ;;

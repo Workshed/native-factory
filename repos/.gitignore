@@ -1,0 +1,4 @@
+# Clones of targets' repositories, worked on in a branch and pushed back.
+# Never our code; never committed here.
+*
+!.gitignore

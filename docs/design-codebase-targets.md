@@ -182,13 +182,66 @@ producing a diff nobody can review.
 Steps 1 and 2 are useful with no task loop at all, which is the same argument that
 ordered the console work.
 
+## Where this lives: the same repository, behind `kind:`
+
+Not a branch, not a separate repository. The split between what is shared and what is
+new is lopsided enough to settle it by counting:
+
+| | lines |
+|---|---|
+| **Platform** — VM, doctor, adb and site bridges, agent-canvas, run-in-guest, supervisor, console | **1,616** |
+| **Pipeline** — website-specific: `inspect-site.ts`, `stage_inspect`, `stage_explore` | **405** |
+
+A separate repository would duplicate the 1,616 — and, worse, duplicate the documentation
+of every trap in `vm.md`, `discovery.md` and the ADRs, which is where most of the real
+value of this project sits. A branch would be worse again: two products on two branches
+diverge and never merge.
+
+Extracting the platform as a shared dependency is the thing to do when there are three
+consumers, not two. The split is clean enough that it stays easy later, which is an
+argument for deciding it later, with evidence.
+
+### What the switch actually touches
+
+Less than expected, because `plan:` already made stages per-target:
+
+| | |
+|---|---|
+| default plan | already overridable per target; `kind` only picks a different default |
+| workspace root | `output/<target>` for a website, `repos/` for a codebase |
+| prompt composition | `build-native-apps.md` vs `modify-existing.md` |
+| console's new-target form | different fields per kind |
+
+Four places. New stages are **new functions**, not conditionals inside old ones, because
+dispatch is already a `case` on the stage name. That was accidental rather than
+foresighted — the plan mechanism was built so one target could skip `explore` — but it is
+why this is a switch rather than a fork.
+
+```yaml
+kind: codebase          # or: website (the default, so existing targets are unchanged)
+```
+
+The console's **New target** form chooses the kind up front and shows the right fields: a
+URL for a website, repository paths and a plan file for a codebase.
+
+### The honest risk
+
+If the two pipelines diverge a long way, `factory.sh` becomes a place where two unrelated
+things are interleaved. The mitigation is structural rather than hopeful — stages are
+separate functions, so divergence adds files rather than nesting — but it is worth
+watching, and worth splitting if `factory.sh` starts needing `kind` in more than those
+four places.
+
 ## Open questions
 
 - **Does `verify` run the existing test suites?** It should, but "poor coverage" may mean
   they are also slow or flaky. Worth measuring before making them a gate.
-- **What happens to a task that fails verification?** Leave the branch for inspection and
-  move on, or stop the run? I lean to stopping: with thin tests, two failures in a row
-  probably means the survey was wrong.
+- ~~What happens to a task that fails verification?~~ **Decided: stop.** The branch is
+  left for inspection and the run halts in a `failed` state carrying which task and which
+  check failed. The fix is the same shape as rejection at the gate — a human reads it and
+  amends *that task* in the plan, then resumes. Carrying on would produce more branches
+  nobody has looked at, and with thin tests a second failure probably means the survey was
+  wrong rather than the task.
 - **How much coverage is "substantial"?** A number in the task makes it checkable and
   makes it gameable — an agent asked for 60% can reach it by testing getters. Better
   phrased per area ("the account view model's state transitions") than as a percentage,
